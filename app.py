@@ -3,7 +3,16 @@ import requests
 from datetime import datetime, date, timedelta
 import math
 import pytz
-import json
+import uuid
+import os
+from dotenv import load_dotenv
+from supabase import create_client
+
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="Salah", page_icon="🕌", layout="centered")
 
@@ -52,6 +61,18 @@ html, body, [class*="css"] { font-family: 'Cormorant Garamond', serif; backgroun
 .tracker-status { font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: #2a4a2a; letter-spacing: 0.15em; }
 .tracker-status.done { color: #4a8a4a; }
 .today-progress { font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: #4a4540; letter-spacing: 0.1em; text-align: center; margin-bottom: 1rem; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 0.5rem; }
+.cal-day { aspect-ratio: 1; border-radius: 2px; display: flex; align-items: center; justify-content: center; font-family: 'Inconsolata', monospace; font-size: 0.6rem; color: #4a4540; }
+.cal-empty { aspect-ratio: 1; }
+.cal-0 { background: #111111; border: 1px solid #1a1a1a; }
+.cal-1 { background: #1a2a1a; }
+.cal-2 { background: #1f3a1f; }
+.cal-3 { background: #254d25; }
+.cal-4 { background: #2a6a2a; }
+.cal-5 { background: #2e8b2e; }
+.cal-label { font-family: 'Inconsolata', monospace; font-size: 0.6rem; color: #2e2e2e; text-align: center; margin-bottom: 0.3rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.cal-dow { font-family: 'Inconsolata', monospace; font-size: 0.55rem; color: #2e2e2e; text-align: center; padding-bottom: 4px; }
+.cal-month-label { font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: #4a4540; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.5rem; }
 #MainMenu, footer, header { visibility: hidden; }
 .block-container { padding-top: 3rem; max-width: 680px; }
 </style>
@@ -198,6 +219,99 @@ SURAHS = [
     (113,"Al-Falaq","The Daybreak"),(114,"An-Nas","The Mankind"),
 ]
 
+# ── Device ID ─────────────────────────────────────────────────────────────────
+def get_device_id():
+    if "device_id" not in st.session_state:
+        st.session_state.device_id = str(uuid.uuid4())
+    return st.session_state.device_id
+
+# ── Supabase tracker ──────────────────────────────────────────────────────────
+def load_prayer_log(device_id):
+    try:
+        res = supabase.table("prayer_log").select("*").eq("device_id", device_id).execute()
+        log = {}
+        for row in res.data:
+            d = str(row["prayer_date"])
+            if d not in log:
+                log[d] = {}
+            log[d][row["prayer_name"]] = row["prayed"]
+        return log
+    except:
+        return {}
+
+def set_prayer(device_id, prayer_date, prayer_name, prayed):
+    try:
+        supabase.table("prayer_log").upsert({
+            "device_id": device_id,
+            "prayer_date": str(prayer_date),
+            "prayer_name": prayer_name,
+            "prayed": prayed
+        }, on_conflict="device_id,prayer_date,prayer_name").execute()
+    except Exception as e:
+        st.error(f"Could not save: {e}")
+
+def is_prayer_done(log, prayer, d=None):
+    if d is None:
+        d = str(selected_date)
+    return log.get(d, {}).get(prayer, False)
+
+def count_today(log):
+    today = str(date.today())
+    return sum(1 for p in TRACKED_PRAYERS if log.get(today, {}).get(p, False))
+
+def calculate_streak(log):
+    streak = 0
+    check_date = date.today()
+    today_count = sum(1 for p in TRACKED_PRAYERS if log.get(str(check_date), {}).get(p, False))
+    if today_count < 5:
+        check_date -= timedelta(days=1)
+    while True:
+        key = str(check_date)
+        day = log.get(key, {})
+        if all(day.get(p, False) for p in TRACKED_PRAYERS):
+            streak += 1
+            check_date -= timedelta(days=1)
+        else:
+            break
+    return streak
+
+def render_calendar(log):
+    today = selected_date
+    first_day = today.replace(day=1)
+    if today.month == 12:
+        next_month = today.replace(year=today.year+1, month=1, day=1)
+    else:
+        next_month = today.replace(month=today.month+1, day=1)
+    last_day = next_month - timedelta(days=1)
+
+    dow_labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+    dow_html = "".join(f'<div class="cal-dow">{d}</div>' for d in dow_labels)
+
+    start_offset = first_day.weekday()
+    empty_cells = "".join('<div class="cal-empty"></div>' for _ in range(start_offset))
+
+    cells = ""
+    for day_num in range(1, last_day.day + 1):
+        d = str(today.replace(day=day_num))
+        count = sum(1 for p in TRACKED_PRAYERS if log.get(d, {}).get(p, False))
+        is_today = day_num == today.day
+        border = "border: 1px solid #c8a96e;" if is_today else ""
+        cells += f'<div class="cal-day cal-{count}" style="{border}">{day_num}</div>'
+
+    month_name = today.strftime("%B %Y")
+    html = (
+        f'<p class="cal-month-label">{month_name}</p>'
+        f'<div class="cal-grid">{dow_html}{empty_cells}{cells}</div>'
+        f'<div style="display:flex;gap:6px;margin-top:0.8rem;align-items:center;">'
+        f'<div class="cal-day cal-0" style="width:16px;height:16px;"></div><span style="font-family:Inconsolata,monospace;font-size:0.6rem;color:#2e2e2e;">0</span>'
+        f'<div class="cal-day cal-2" style="width:16px;height:16px;"></div><span style="font-family:Inconsolata,monospace;font-size:0.6rem;color:#2e2e2e;">1-2</span>'
+        f'<div class="cal-day cal-4" style="width:16px;height:16px;"></div><span style="font-family:Inconsolata,monospace;font-size:0.6rem;color:#2e2e2e;">3-4</span>'
+        f'<div class="cal-day cal-5" style="width:16px;height:16px;"></div><span style="font-family:Inconsolata,monospace;font-size:0.6rem;color:#2e2e2e;">5</span>'
+        f'</div>'
+    )
+    return html
+
+# ── API helpers ───────────────────────────────────────────────────────────────
 def get_data_by_city(city, country):
     url = f"https://api.aladhan.com/v1/timingsByCity?city={city}&country={country}&method=2"
     r = requests.get(url, timeout=10)
@@ -270,54 +384,16 @@ def compass_svg(degrees):
         '</svg>'
     )
 
-def load_tracker():
-    if "tracker" not in st.session_state:
-        st.session_state.tracker = {}
-    return st.session_state.tracker
-
-def get_today_key():
-    return str(date.today())
-
-def is_prayer_done(tracker, prayer):
-    today = get_today_key()
-    return tracker.get(today, {}).get(prayer, False)
-
-def toggle_prayer(tracker, prayer):
-    today = get_today_key()
-    if today not in tracker:
-        tracker[today] = {}
-    tracker[today][prayer] = not tracker.get(today, {}).get(prayer, False)
-    st.session_state.tracker = tracker
-
-def count_today(tracker):
-    today = get_today_key()
-    return sum(1 for p in TRACKED_PRAYERS if tracker.get(today, {}).get(p, False))
-
-def calculate_streak(tracker):
-    streak = 0
-    check_date = date.today()
-    today_count = sum(1 for p in TRACKED_PRAYERS if tracker.get(str(check_date), {}).get(p, False))
-    if today_count < 5:
-        check_date -= timedelta(days=1)
-    while True:
-        key = str(check_date)
-        day_prayers = tracker.get(key, {})
-        if all(day_prayers.get(p, False) for p in TRACKED_PRAYERS):
-            streak += 1
-            check_date -= timedelta(days=1)
-        else:
-            break
-    return streak
-
+# ── Header ────────────────────────────────────────────────────────────────────
 now_utc = datetime.now()
 st.markdown('<p class="main-title">Salah</p>', unsafe_allow_html=True)
 st.markdown('<p class="arabic-sub">\u0623\u0648\u0642\u0627\u062a \u0627\u0644\u0635\u0644\u0627\u0629</p>', unsafe_allow_html=True)
 st.markdown(f'<p class="date-line">{now_utc.strftime("%A, %B %d, %Y")}</p>', unsafe_allow_html=True)
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
+# ── Location ──────────────────────────────────────────────────────────────────
 st.markdown('<p class="section-label">Location</p>', unsafe_allow_html=True)
 use_gps = st.toggle("Use my current location", value=True)
-
 city, country, lat, lon, timezone_str = "New York", "US", 40.7128, -74.0060, "America/New_York"
 
 if use_gps:
@@ -336,6 +412,7 @@ if not use_gps:
     with col2:
         country = st.selectbox("Country", COUNTRIES, index=COUNTRIES.index("US") if "US" in COUNTRIES else 0)
 
+# ── Prayer Times ──────────────────────────────────────────────────────────────
 try:
     with st.spinner(""):
         if use_gps:
@@ -354,7 +431,6 @@ try:
     hijri_str = f"{hijri['day']} {hijri['month']['en']} {hijri['year']} AH"
     st.markdown(f'<p class="hijri-date">{hijri_str}</p>', unsafe_allow_html=True)
     st.markdown('<p class="section-label">Prayer Times</p>', unsafe_allow_html=True)
-
     next_prayer = find_next_prayer(timings, timezone_str)
 
     for name in PRAYER_ORDER:
@@ -377,8 +453,7 @@ try:
     st.markdown('<p class="section-label">Qibla Direction</p>', unsafe_allow_html=True)
     svg = compass_svg(qibla_deg)
     st.markdown(
-        f'<div class="qibla-section">'
-        f'{svg}'
+        f'<div class="qibla-section">{svg}'
         f'<div class="qibla-degree">{qibla_deg:.1f}\u00b0</div>'
         f'<div class="qibla-label">from North \u00b7 toward Makkah</div>'
         f'</div>',
@@ -394,9 +469,17 @@ except Exception as e:
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 st.markdown('<p class="section-label">Prayer Tracker</p>', unsafe_allow_html=True)
 
-tracker = load_tracker()
-streak = calculate_streak(tracker)
-today_count = count_today(tracker)
+device_id = get_device_id()
+log = load_prayer_log(device_id)
+streak = calculate_streak(log)
+today_count = count_today(log)
+
+selected_date = st.date_input(
+    "Log prayers for:",
+    value=date.today(),
+    max_value=date.today(),
+    label_visibility="visible"
+)
 
 st.markdown(
     f'<div class="streak-banner">'
@@ -406,14 +489,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.markdown(f'<p class="today-progress">{today_count} of 5 prayers completed today</p>', unsafe_allow_html=True)
+selected_count = sum(1 for p in TRACKED_PRAYERS if is_prayer_done(log, p, str(selected_date)))
+label = "today" if selected_date == date.today() else selected_date.strftime("%B %d")
+st.markdown(f'<p class="today-progress">{selected_count} of 5 prayers completed {label}</p>', unsafe_allow_html=True)
 
 for prayer in TRACKED_PRAYERS:
-    done = is_prayer_done(tracker, prayer)
+    done = is_prayer_done(log, prayer, str(selected_date))
     col1, col2 = st.columns([4, 1])
     with col1:
-        status_class = "tracker-status done" if done else "tracker-status"
         card_class = "tracker-card done" if done else "tracker-card"
+        status_class = "tracker-status done" if done else "tracker-status"
         checkmark = "\u2713 prayed" if done else "\u00b7 not yet"
         st.markdown(
             f'<div class="{card_class}">'
@@ -425,15 +510,17 @@ for prayer in TRACKED_PRAYERS:
     with col2:
         btn_label = "Undo" if done else "Prayed"
         if st.button(btn_label, key=f"track_{prayer}"):
-            toggle_prayer(tracker, prayer)
+            set_prayer(device_id, selected_date, prayer, not done)
             st.rerun()
+
+st.markdown('<p class="section-label">This Month</p>', unsafe_allow_html=True)
+st.markdown(render_calendar(log), unsafe_allow_html=True)
 
 # ── Duas ──────────────────────────────────────────────────────────────────────
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 st.markdown('<p class="section-label">Daily Duas</p>', unsafe_allow_html=True)
 
 dua_category = st.selectbox("Dua category", list(DUAS.keys()), label_visibility="collapsed")
-
 for dua in DUAS[dua_category]:
     st.markdown(
         f'<div class="dua-card">'
