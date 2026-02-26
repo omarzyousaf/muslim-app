@@ -1,8 +1,9 @@
 import streamlit as st
 import requests
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import math
 import pytz
+import json
 
 st.set_page_config(page_title="Salah", page_icon="🕌", layout="centered")
 
@@ -33,9 +34,24 @@ html, body, [class*="css"] { font-family: 'Cormorant Garamond', serif; backgroun
 .ayah-block { border-bottom: 1px solid #161616; padding: 1.4rem 0; }
 .ayah-arabic { font-size: 1.6rem; color: #e8e2d9; text-align: right; line-height: 2.2; font-weight: 300; direction: rtl; }
 .ayah-number { font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: #c8a96e; letter-spacing: 0.15em; margin-bottom: 0.4rem; }
-.ayah-english { font-size: 0.95rem; color: #7a6f63; line-height: 1.7; font-weight: 300; margin-top: 0.6rem; font-style: italic; }
+.ayah-translit { font-size: 0.9rem; color: #5a5248; line-height: 1.7; font-weight: 300; margin-top: 0.5rem; font-style: italic; letter-spacing: 0.02em; }
+.ayah-english { font-size: 0.95rem; color: #7a6f63; line-height: 1.7; font-weight: 300; margin-top: 0.4rem; font-style: italic; }
 .bismillah { font-size: 1.8rem; color: #c8a96e; text-align: center; padding: 1.5rem 0; direction: rtl; }
 .location-info { font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: #4a4540; letter-spacing: 0.1em; margin-bottom: 0.5rem; }
+.dua-card { background: #111111; border: 1px solid #1e1e1e; border-radius: 2px; padding: 1.6rem 1.8rem; margin-bottom: 0.8rem; }
+.dua-title { font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: #c8a96e; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 0.8rem; }
+.dua-arabic { font-size: 1.4rem; color: #e8e2d9; text-align: right; line-height: 2.1; font-weight: 300; direction: rtl; margin-bottom: 0.6rem; }
+.dua-translit { font-size: 0.85rem; color: #5a5248; line-height: 1.7; font-style: italic; margin-bottom: 0.4rem; }
+.dua-english { font-size: 0.9rem; color: #7a6f63; line-height: 1.7; font-style: italic; }
+.streak-banner { background: #131210; border: 1px solid #c8a96e; border-radius: 2px; padding: 1.8rem; text-align: center; margin-bottom: 1rem; }
+.streak-number { font-family: 'Inconsolata', monospace; font-size: 3.5rem; color: #c8a96e; font-weight: 300; line-height: 1; }
+.streak-label { font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: #4a4540; letter-spacing: 0.25em; text-transform: uppercase; margin-top: 0.4rem; }
+.tracker-card { background: #111111; border: 1px solid #1e1e1e; border-radius: 2px; padding: 1.2rem 1.8rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+.tracker-card.done { border-color: #2a3a2a; background: #0f130f; }
+.tracker-prayer-name { font-size: 1rem; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: #c8b89a; }
+.tracker-status { font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: #2a4a2a; letter-spacing: 0.15em; }
+.tracker-status.done { color: #4a8a4a; }
+.today-progress { font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: #4a4540; letter-spacing: 0.1em; text-align: center; margin-bottom: 1rem; }
 #MainMenu, footer, header { visibility: hidden; }
 .block-container { padding-top: 3rem; max-width: 680px; }
 </style>
@@ -47,6 +63,7 @@ ARABIC_NAMES = {
     "Maghrib": "\u0627\u0644\u0645\u063a\u0631\u0628", "Isha": "\u0627\u0644\u0639\u0634\u0627\u0621",
 }
 PRAYER_ORDER = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"]
+TRACKED_PRAYERS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"]
 
 COUNTRIES = [
     "Afghanistan", "Albania", "Algeria", "Argentina", "Australia", "Austria", "Azerbaijan",
@@ -62,6 +79,83 @@ COUNTRIES = [
     "Tunisia", "Turkey", "Turkmenistan", "UAE", "Uganda", "UK", "US", "Uzbekistan",
     "Yemen", "Zambia",
 ]
+
+DUAS = {
+    "Morning & Evening": [
+        {
+            "title": "Morning Remembrance",
+            "arabic": "\u0623\u0635\u0628\u062d\u0646\u0627 \u0648\u0623\u0635\u0628\u062d \u0627\u0644\u0645\u0644\u0643 \u0644\u0644\u0647\u060c \u0648\u0627\u0644\u062d\u0645\u062f \u0644\u0644\u0647",
+            "translit": "Asbahna wa asbahal mulku lillah, walhamdu lillah",
+            "english": "We have entered the morning and the whole kingdom belongs to Allah. All praise is for Allah."
+        },
+        {
+            "title": "Evening Remembrance",
+            "arabic": "\u0623\u0645\u0633\u064a\u0646\u0627 \u0648\u0623\u0645\u0633\u0649 \u0627\u0644\u0645\u0644\u0643 \u0644\u0644\u0647\u060c \u0648\u0627\u0644\u062d\u0645\u062f \u0644\u0644\u0647",
+            "translit": "Amsayna wa amsal mulku lillah, walhamdu lillah",
+            "english": "We have entered the evening and the whole kingdom belongs to Allah. All praise is for Allah."
+        },
+        {
+            "title": "Protection Morning & Evening",
+            "arabic": "\u0627\u0644\u0644\u0647\u0645 \u0628\u0643 \u0623\u0635\u0628\u062d\u0646\u0627\u060c \u0648\u0628\u0643 \u0623\u0645\u0633\u064a\u0646\u0627\u060c \u0648\u0628\u0643 \u0646\u062d\u064a\u0627\u060c \u0648\u0628\u0643 \u0646\u0645\u0648\u062a \u0648\u0625\u0644\u064a\u0643 \u0627\u0644\u0646\u0634\u0648\u0631",
+            "translit": "Allahumma bika asbahna, wa bika amsayna, wa bika nahya, wa bika namutu wa ilaykan-nushur",
+            "english": "O Allah, by You we enter the morning, by You we enter the evening, by You we live, by You we die, and to You is the resurrection."
+        },
+    ],
+    "Meals & Eating": [
+        {
+            "title": "Before Eating",
+            "arabic": "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650",
+            "translit": "Bismillah",
+            "english": "In the name of Allah."
+        },
+        {
+            "title": "After Eating",
+            "arabic": "\u0627\u0644\u062d\u0645\u062f \u0644\u0644\u0647 \u0627\u0644\u0630\u064a \u0623\u0637\u0639\u0645\u0646\u0627 \u0648\u0633\u0642\u0627\u0646\u0627 \u0648\u062c\u0639\u0644\u0646\u0627 \u0645\u0633\u0644\u0645\u064a\u0646",
+            "translit": "Alhamdu lillahil-ladhi at'amana wa saqana wa ja'alana muslimin",
+            "english": "All praise is for Allah who fed us, gave us drink, and made us Muslims."
+        },
+        {
+            "title": "If You Forget Bismillah",
+            "arabic": "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u0623\u0648\u0651\u064e\u0644\u064e\u0647\u064f \u0648\u064f\u0622\u062e\u0650\u0631\u064e\u0647\u064f",
+            "translit": "Bismillahi awwalahu wa akhirahu",
+            "english": "In the name of Allah at the beginning and end of it."
+        },
+    ],
+    "Sleep & Waking Up": [
+        {
+            "title": "Before Sleeping",
+            "arabic": "\u0628\u0650\u0627\u0633\u0652\u0645\u0650\u0643\u064e \u0627\u0644\u0644\u0651\u064e\u0647\u064f\u0645\u0651\u064e \u0623\u0645\u0648\u062a\u064f \u0648\u0623\u062d\u064a\u0627",
+            "translit": "Bismika Allahumma amutu wa ahya",
+            "english": "In Your name, O Allah, I die and I live."
+        },
+        {
+            "title": "Upon Waking Up",
+            "arabic": "\u0627\u0644\u062d\u0645\u062f \u0644\u0644\u0647 \u0627\u0644\u0630\u064a \u0623\u062d\u064a\u0627\u0646\u0627 \u0628\u0639\u062f \u0645\u0627 \u0623\u0645\u0627\u062a\u0646\u0627 \u0648\u0625\u0644\u064a\u0647 \u0627\u0644\u0646\u0634\u0648\u0631",
+            "translit": "Alhamdu lillahil-ladhi ahyana ba'da ma amatana wa ilayhin-nushur",
+            "english": "All praise is for Allah who gave us life after having taken it from us, and unto Him is the resurrection."
+        },
+        {
+            "title": "Dua Before Sleep",
+            "arabic": "\u0627\u0644\u0644\u0647\u0645 \u0625\u0646\u064a \u0623\u0639\u0648\u0630 \u0628\u0643 \u0645\u0646 \u0627\u0644\u0634\u064a\u0637\u0627\u0646 \u0627\u0644\u0631\u062c\u064a\u0645",
+            "translit": "Allahumma inni a'udhu bika minash-shaytanir-rajim",
+            "english": "O Allah, I seek refuge in You from the accursed devil."
+        },
+    ],
+    "Entering & Leaving Home": [
+        {
+            "title": "Entering the Home",
+            "arabic": "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u0648\u064e\u0644\u064e\u062c\u0652\u0646\u064e\u0627\u060c \u0648\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u062e\u064e\u0631\u064e\u062c\u0652\u0646\u064e\u0627\u060c \u0648\u0639\u064e\u0644\u0649 \u0627\u0644\u0644\u0647\u0650 \u0631\u064e\u0628\u0651\u0650\u0646\u064e\u0627 \u062a\u064e\u0648\u064e\u0643\u0651\u064e\u0644\u0652\u0646\u064e\u0627",
+            "translit": "Bismillahi walajna, wa bismillahi kharajna, wa 'alallahi rabbina tawakkalna",
+            "english": "In the name of Allah we enter, in the name of Allah we leave, and upon Allah our Lord we rely."
+        },
+        {
+            "title": "Leaving the Home",
+            "arabic": "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650\u060c \u062a\u064e\u0648\u064e\u0643\u0651\u064e\u0644\u0652\u062a\u064f \u0639\u064e\u0644\u0649 \u0627\u0644\u0644\u0651\u064e\u0647\u0650\u060c \u0648\u0644\u0627 \u062d\u064e\u0648\u0652\u0644\u064e \u0648\u0644\u0627 \u0642\u064f\u0648\u0651\u064e\u0629\u064e \u0625\u0650\u0644\u0651\u064e\u0627 \u0628\u0650\u0627\u0644\u0644\u0651\u064e\u0647\u0650",
+            "translit": "Bismillah, tawakkaltu 'alallah, wa la hawla wa la quwwata illa billah",
+            "english": "In the name of Allah, I place my trust in Allah, and there is no power nor strength except with Allah."
+        },
+    ],
+}
 
 SURAHS = [
     (1,"Al-Fatiha","The Opening"),(2,"Al-Baqarah","The Cow"),(3,"Al-Imran","Family of Imran"),
@@ -129,7 +223,7 @@ def get_qibla(lat, lon):
     return r.json()["data"]["direction"]
 
 def get_surah(number):
-    url = f"https://api.alquran.cloud/v1/surah/{number}/editions/quran-uthmani,en.sahih"
+    url = f"https://api.alquran.cloud/v1/surah/{number}/editions/quran-uthmani,en.transliteration,en.sahih"
     r = requests.get(url, timeout=15)
     r.raise_for_status()
     return r.json()["data"]
@@ -176,6 +270,45 @@ def compass_svg(degrees):
         '</svg>'
     )
 
+def load_tracker():
+    if "tracker" not in st.session_state:
+        st.session_state.tracker = {}
+    return st.session_state.tracker
+
+def get_today_key():
+    return str(date.today())
+
+def is_prayer_done(tracker, prayer):
+    today = get_today_key()
+    return tracker.get(today, {}).get(prayer, False)
+
+def toggle_prayer(tracker, prayer):
+    today = get_today_key()
+    if today not in tracker:
+        tracker[today] = {}
+    tracker[today][prayer] = not tracker.get(today, {}).get(prayer, False)
+    st.session_state.tracker = tracker
+
+def count_today(tracker):
+    today = get_today_key()
+    return sum(1 for p in TRACKED_PRAYERS if tracker.get(today, {}).get(p, False))
+
+def calculate_streak(tracker):
+    streak = 0
+    check_date = date.today()
+    today_count = sum(1 for p in TRACKED_PRAYERS if tracker.get(str(check_date), {}).get(p, False))
+    if today_count < 5:
+        check_date -= timedelta(days=1)
+    while True:
+        key = str(check_date)
+        day_prayers = tracker.get(key, {})
+        if all(day_prayers.get(p, False) for p in TRACKED_PRAYERS):
+            streak += 1
+            check_date -= timedelta(days=1)
+        else:
+            break
+    return streak
+
 now_utc = datetime.now()
 st.markdown('<p class="main-title">Salah</p>', unsafe_allow_html=True)
 st.markdown('<p class="arabic-sub">\u0623\u0648\u0642\u0627\u062a \u0627\u0644\u0635\u0644\u0627\u0629</p>', unsafe_allow_html=True)
@@ -209,7 +342,6 @@ try:
             data = get_data_by_coords(lat, lon)
         else:
             data = get_data_by_city(city, country)
-
         timings = data["data"]["timings"]
         hijri = data["data"]["date"]["hijri"]
         meta = data["data"]["meta"]
@@ -258,18 +390,90 @@ except requests.exceptions.ConnectionError:
 except Exception as e:
     st.error(f"Prayer times error: {e}")
 
+# ── Prayer Tracker ────────────────────────────────────────────────────────────
+st.markdown('<hr class="divider">', unsafe_allow_html=True)
+st.markdown('<p class="section-label">Prayer Tracker</p>', unsafe_allow_html=True)
+
+tracker = load_tracker()
+streak = calculate_streak(tracker)
+today_count = count_today(tracker)
+
+st.markdown(
+    f'<div class="streak-banner">'
+    f'<div class="streak-number">{streak}</div>'
+    f'<div class="streak-label">day streak</div>'
+    f'</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(f'<p class="today-progress">{today_count} of 5 prayers completed today</p>', unsafe_allow_html=True)
+
+for prayer in TRACKED_PRAYERS:
+    done = is_prayer_done(tracker, prayer)
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        status_class = "tracker-status done" if done else "tracker-status"
+        card_class = "tracker-card done" if done else "tracker-card"
+        checkmark = "\u2713 prayed" if done else "\u00b7 not yet"
+        st.markdown(
+            f'<div class="{card_class}">'
+            f'<div class="tracker-prayer-name">{prayer}</div>'
+            f'<div class="{status_class}">{checkmark}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+    with col2:
+        btn_label = "Undo" if done else "Prayed"
+        if st.button(btn_label, key=f"track_{prayer}"):
+            toggle_prayer(tracker, prayer)
+            st.rerun()
+
+# ── Duas ──────────────────────────────────────────────────────────────────────
+st.markdown('<hr class="divider">', unsafe_allow_html=True)
+st.markdown('<p class="section-label">Daily Duas</p>', unsafe_allow_html=True)
+
+dua_category = st.selectbox("Dua category", list(DUAS.keys()), label_visibility="collapsed")
+
+for dua in DUAS[dua_category]:
+    st.markdown(
+        f'<div class="dua-card">'
+        f'<div class="dua-title">{dua["title"]}</div>'
+        f'<div class="dua-arabic">{dua["arabic"]}</div>'
+        f'<div class="dua-translit">{dua["translit"]}</div>'
+        f'<div class="dua-english">{dua["english"]}</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+# ── Quran ─────────────────────────────────────────────────────────────────────
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 st.markdown('<p class="section-label">Quran</p>', unsafe_allow_html=True)
 
-surah_options = [f"{n}. {name} \u2014 {meaning}" for n, name, meaning in SURAHS]
-selected = st.selectbox("Select a Surah", surah_options, index=0, label_visibility="collapsed")
-surah_number = int(selected.split(".")[0])
+from streamlit_searchbox import st_searchbox
+
+def search_surahs(query):
+    if not query:
+        return [f"{n}. {name} \u2014 {meaning}" for n, name, meaning in SURAHS]
+    return [
+        f"{n}. {name} \u2014 {meaning}"
+        for n, name, meaning in SURAHS
+        if query.lower() in name.lower() or query.lower() in meaning.lower() or query == str(n)
+    ]
+
+selected = st_searchbox(
+    search_surahs,
+    placeholder="Search surah by name, number, or meaning...",
+    key="surah_search",
+    default="1. Al-Fatiha \u2014 The Opening",
+)
+surah_number = int(selected.split(".")[0]) if selected else 1
 
 try:
     with st.spinner("Loading surah..."):
         editions = get_surah(surah_number)
         arabic_edition = editions[0]
-        english_edition = editions[1]
+        translit_edition = editions[1]
+        english_edition = editions[2]
 
     surah_info = next((s for s in SURAHS if s[0] == surah_number), None)
     revelation = arabic_edition.get("revelationType", "")
@@ -286,11 +490,12 @@ try:
     if surah_number != 9:
         st.markdown('<div class="bismillah">\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650</div>', unsafe_allow_html=True)
 
-    for ar, en in zip(arabic_edition["ayahs"], english_edition["ayahs"]):
+    for ar, tr, en in zip(arabic_edition["ayahs"], translit_edition["ayahs"], english_edition["ayahs"]):
         st.markdown(
             f'<div class="ayah-block">'
             f'<div class="ayah-number">Ayah {ar["numberInSurah"]}</div>'
             f'<div class="ayah-arabic">{ar["text"]}</div>'
+            f'<div class="ayah-translit">{tr["text"]}</div>'
             f'<div class="ayah-english">{en["text"]}</div>'
             f'</div>',
             unsafe_allow_html=True
