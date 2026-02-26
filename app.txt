@@ -1,0 +1,316 @@
+import streamlit as st
+import requests
+from datetime import datetime
+import math
+
+# ── Page config ──────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Salah",
+    page_icon="🕌",
+    layout="centered",
+)
+
+# ── Styling ───────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Inconsolata:wght@300;400&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Cormorant Garamond', serif;
+    background-color: #0a0a0a;
+    color: #e8e2d9;
+}
+
+.stApp {
+    background-color: #0a0a0a;
+}
+
+h1, h2, h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    letter-spacing: 0.08em;
+}
+
+.main-title {
+    font-size: 3.2rem;
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #e8e2d9;
+    margin-bottom: 0;
+    line-height: 1;
+}
+
+.arabic-sub {
+    font-size: 1.6rem;
+    color: #7a6f63;
+    letter-spacing: 0.05em;
+    margin-top: 0.2rem;
+    font-weight: 300;
+}
+
+.date-line {
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.75rem;
+    color: #4a4540;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 0.5rem;
+}
+
+.divider {
+    border: none;
+    border-top: 1px solid #1e1e1e;
+    margin: 2rem 0;
+}
+
+.prayer-card {
+    background: #111111;
+    border: 1px solid #1e1e1e;
+    border-radius: 2px;
+    padding: 1.4rem 1.8rem;
+    margin-bottom: 0.6rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: border-color 0.3s;
+}
+
+.prayer-card.next {
+    border-color: #c8a96e;
+    background: #131210;
+}
+
+.prayer-name {
+    font-size: 1.1rem;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #c8b89a;
+}
+
+.prayer-name-arabic {
+    font-size: 0.85rem;
+    color: #4a4540;
+    margin-top: 0.1rem;
+    font-family: 'Cormorant Garamond', serif;
+}
+
+.prayer-time {
+    font-family: 'Inconsolata', monospace;
+    font-size: 1.3rem;
+    color: #e8e2d9;
+    font-weight: 300;
+}
+
+.next-badge {
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.65rem;
+    color: #c8a96e;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-left: 0.8rem;
+}
+
+.qibla-section {
+    background: #111111;
+    border: 1px solid #1e1e1e;
+    border-radius: 2px;
+    padding: 2rem;
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.qibla-degree {
+    font-family: 'Inconsolata', monospace;
+    font-size: 3rem;
+    color: #c8a96e;
+    font-weight: 300;
+    line-height: 1;
+}
+
+.qibla-label {
+    font-size: 0.75rem;
+    color: #4a4540;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 0.4rem;
+    font-family: 'Inconsolata', monospace;
+}
+
+.compass-wrap {
+    margin: 1.5rem auto;
+    width: 140px;
+    height: 140px;
+    position: relative;
+}
+
+.section-label {
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.7rem;
+    color: #4a4540;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    margin-top: 2rem;
+}
+
+.hijri-date {
+    font-size: 1rem;
+    color: #7a6f63;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+}
+
+/* Hide streamlit chrome */
+#MainMenu, footer, header {visibility: hidden;}
+.block-container {padding-top: 3rem; max-width: 680px;}
+</style>
+""", unsafe_allow_html=True)
+
+# ── Arabic prayer names ───────────────────────────────────────────────────────
+ARABIC = {
+    "Fajr": "الفجر",
+    "Sunrise": "الشروق",
+    "Dhuhr": "الظهر",
+    "Asr": "العصر",
+    "Maghrib": "المغرب",
+    "Isha": "العشاء",
+    "Midnight": "منتصف الليل",
+}
+
+PRAYER_ORDER = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"]
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def get_prayer_times(city, country):
+    url = f"https://api.aladhan.com/v1/timingsByCity?city={city}&country={country}&method=2"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    return r.json()
+
+def get_qibla(lat, lon):
+    url = f"https://api.aladhan.com/v1/qibla/{lat}/{lon}"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    return r.json()["data"]["direction"]
+
+def get_coords(city, country):
+    url = f"https://api.aladhan.com/v1/timingsByCity?city={city}&country={country}&method=2"
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    meta = data["data"]["meta"]
+    return meta["latitude"], meta["longitude"]
+
+def to_12h(time_str):
+    try:
+        t = datetime.strptime(time_str, "%H:%M")
+        return t.strftime("%-I:%M %p")
+    except:
+        return time_str
+
+def find_next_prayer(timings):
+    now = datetime.now()
+    current_minutes = now.hour * 60 + now.minute
+    for name in PRAYER_ORDER:
+        if name in timings:
+            t = datetime.strptime(timings[name], "%H:%M")
+            prayer_minutes = t.hour * 60 + t.minute
+            if prayer_minutes > current_minutes:
+                return name
+    return "Fajr"  # next day
+
+def compass_svg(degrees):
+    rad = math.radians(degrees - 90)
+    cx, cy, r = 70, 70, 55
+    ax = cx + r * math.cos(rad)
+    ay = cy + r * math.sin(rad)
+    # tail
+    rad2 = math.radians(degrees + 90)
+    tx = cx + 20 * math.cos(rad2)
+    ty = cy + 20 * math.sin(rad2)
+    return f"""
+    <svg width="140" height="140" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="70" cy="70" r="65" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+      <circle cx="70" cy="70" r="3" fill="#4a4540"/>
+      <!-- N marker -->
+      <text x="70" y="16" text-anchor="middle" font-family="Inconsolata,monospace" font-size="10" fill="#4a4540">N</text>
+      <text x="70" y="132" text-anchor="middle" font-family="Inconsolata,monospace" font-size="10" fill="#4a4540">S</text>
+      <text x="8" y="74" text-anchor="middle" font-family="Inconsolata,monospace" font-size="10" fill="#4a4540">W</text>
+      <text x="132" y="74" text-anchor="middle" font-family="Inconsolata,monospace" font-size="10" fill="#4a4540">E</text>
+      <!-- Qibla arrow -->
+      <line x1="{tx}" y1="{ty}" x2="{ax}" y2="{ay}" stroke="#c8a96e" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="{ax}" cy="{ay}" r="4" fill="#c8a96e"/>
+      <!-- Kaaba symbol at tip -->
+    </svg>
+    """
+
+# ── UI ────────────────────────────────────────────────────────────────────────
+
+# Header
+now = datetime.now()
+st.markdown('<p class="main-title">Salah</p>', unsafe_allow_html=True)
+st.markdown('<p class="arabic-sub">أوقات الصلاة</p>', unsafe_allow_html=True)
+st.markdown(f'<p class="date-line">{now.strftime("%A, %B %d, %Y")}</p>', unsafe_allow_html=True)
+
+st.markdown('<hr class="divider">', unsafe_allow_html=True)
+
+# Location input
+col1, col2 = st.columns([3, 1])
+with col1:
+    city = st.text_input("City", value="New York", label_visibility="collapsed", placeholder="City")
+with col2:
+    country = st.text_input("Country", value="US", label_visibility="collapsed", placeholder="Country")
+
+# Fetch data
+try:
+    with st.spinner(""):
+        data = get_prayer_times(city, country)
+        timings = data["data"]["timings"]
+        hijri = data["data"]["date"]["hijri"]
+        lat, lon = get_coords(city, country)
+        qibla_deg = get_qibla(lat, lon)
+
+    # Hijri date
+    hijri_str = f"{hijri['day']} {hijri['month']['en']} {hijri['year']} AH"
+    st.markdown(f'<p class="hijri-date">{hijri_str}</p>', unsafe_allow_html=True)
+
+    # Prayer times
+    st.markdown('<p class="section-label">Prayer Times</p>', unsafe_allow_html=True)
+
+    next_prayer = find_next_prayer(timings)
+
+    for name in PRAYER_ORDER:
+        if name not in timings:
+            continue
+        is_next = name == next_prayer
+        card_class = "prayer-card next" if is_next else "prayer-card"
+        badge = '<span class="next-badge">· next</span>' if is_next else ""
+        arabic = ARABIC.get(name, "")
+        time_12 = to_12h(timings[name])
+
+        st.markdown(f"""
+        <div class="{card_class}">
+            <div>
+                <div class="prayer-name">{name}{badge}</div>
+                <div class="prayer-name-arabic">{arabic}</div>
+            </div>
+            <div class="prayer-time">{time_12}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Qibla
+    st.markdown('<p class="section-label">Qibla Direction</p>', unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="qibla-section">
+        {compass_svg(qibla_deg)}
+        <div class="qibla-degree">{qibla_deg:.1f}°</div>
+        <div class="qibla-label">from North · toward Makkah</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+except requests.exceptions.ConnectionError:
+    st.error("Could not connect. Please check your internet connection.")
+except Exception as e:
+    st.error(f"Something went wrong: {e}")
