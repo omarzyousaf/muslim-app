@@ -30,6 +30,7 @@ gold        = "#c8a96e"
 streak_bg   = "#131210" if is_dark else "#fdf6ec"
 tracker_done_bg = "#0f130f" if is_dark else "#f0f7f0"
 tracker_done_border = "#2a3a2a" if is_dark else "#a0c8a0"
+shadow      = "0 4px 12px rgba(0, 0, 0, 0.3)" if is_dark else "0 4px 12px rgba(0, 0, 0, 0.05)"
 
 ramadan_border_color = "#c8692e" if is_dark else "#d4783a"
 ramadan_title_color  = "#e8a05a" if is_dark else "#7a3010"
@@ -63,55 +64,109 @@ else:
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Inconsolata:wght@300;400&display=swap');
+
+/* --- Animations & Global --- */
+@keyframes fadeIn {{
+    from {{ opacity: 0; transform: translateY(4px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
+}}
 html, body, [class*="css"] {{ font-family: 'Cormorant Garamond', serif; color: {text}; }}
 [class*="css"] {{ background-color: {bg}; }}
 html, body {{ background: {_bg_gradient}; background-attachment: fixed; }}
 .stApp {{ background: {_bg_gradient} !important; background-attachment: fixed; min-height: 100vh; }}
+
+/* --- Tabs --- */
 .stTabs [data-baseweb="tab-list"] {{ background-color: {bg}; border-bottom: 1px solid {border}; gap: 0; }}
-.stTabs [data-baseweb="tab"] {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: {dim}; padding: 0.6rem 1.2rem; }}
+.stTabs [data-baseweb="tab-panel"] {{ animation: fadeIn 0.4s ease-out; }}
+.stTabs [data-baseweb="tab"] {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: {dim}; padding: 1rem 1.5rem; }}
 .stTabs [aria-selected="true"] {{ color: {gold} !important; border-bottom: 1px solid {gold} !important; }}
+
+/* --- Headers & Typography --- */
 .main-title {{ font-size: 3.2rem; font-weight: 300; letter-spacing: 0.2em; text-transform: uppercase; color: {text}; margin-bottom: 0; line-height: 1; }}
 .arabic-sub {{ font-size: 1.6rem; color: {muted}; letter-spacing: 0.05em; margin-top: 0.2rem; font-weight: 300; }}
 .date-line {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 0.5rem; }}
 .divider {{ border: none; border-top: 1px solid {border}; margin: 2rem 0; }}
-.prayer-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 2px; padding: 1.4rem 1.8rem; margin-bottom: 0.6rem; display: flex; justify-content: space-between; align-items: center; }}
+.section-label {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim}; letter-spacing: 0.25em; text-transform: uppercase; margin-bottom: 1rem; margin-top: 2rem; }}
+.hijri-date {{ font-size: 1rem; color: {muted}; font-weight: 300; letter-spacing: 0.05em; }}
+.location-info {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim}; letter-spacing: 0.1em; margin-bottom: 0.5rem; }}
+.bismillah {{ font-size: 1.8rem; color: {gold}; text-align: center; padding: 1.5rem 0; direction: rtl; }}
+
+/* --- Cards (Global 8px Radius & Shadow) --- */
+.prayer-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.4rem 1.8rem; margin-bottom: 0.6rem; display: flex; justify-content: space-between; align-items: center; }}
 .prayer-card.next {{ border-color: {gold}; background: {streak_bg}; }}
+.qibla-section {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 2rem; text-align: center; margin-top: 1rem; }}
+.surah-header {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.8rem; text-align: center; margin-bottom: 1rem; }}
+.ayah-block {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.4rem 1.8rem; margin-bottom: 1rem; }}
+.dua-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.6rem 1.8rem; margin-bottom: 0.8rem; }}
+.streak-banner {{ background: {streak_bg}; border: 1px solid {gold}; border-radius: 8px; box-shadow: {shadow}; padding: 1.8rem; text-align: center; margin-bottom: 1rem; }}
+.tracker-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.2rem 1.8rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }}
+.tracker-card.done {{ border-color: {tracker_done_border}; background: {tracker_done_bg}; }}
+.countdown-card {{ background: {streak_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.2rem 1.8rem; margin: 0.5rem 0 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }}
+.ramadan-banner {{ border-radius: 8px; padding: 1.4rem 1.8rem; margin-bottom: 1rem; text-align: center; border: 1px solid {ramadan_border_color}; background: {ramadan_bg}; box-shadow: {shadow}; }}
+
+/* --- Audio Player Styles --- */
+.play-btn {{
+    background: none;
+    border: none;
+    color: {dim};
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0 0.5rem;
+}}
+.play-btn:hover {{
+    color: {gold};
+    transform: scale(1.1);
+}}
+.playing-ayah {{
+    border-color: {gold} !important;
+    background-color: {"#2a2010" if is_dark else "#fdf3e1"} !important;
+    box-shadow: 0 0 15px rgba(200, 169, 110, 0.15) !important;
+    transition: all 0.4s ease;
+}}
+
+/* --- Component Specifics --- */
 .prayer-name {{ font-size: 1.1rem; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: #c8b89a; }}
 .prayer-name-arabic {{ font-size: 0.85rem; color: {dim}; margin-top: 0.1rem; }}
 .prayer-time {{ font-family: 'Inconsolata', monospace; font-size: 1.3rem; color: {text}; font-weight: 300; }}
 .next-badge {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {gold}; letter-spacing: 0.2em; text-transform: uppercase; margin-left: 0.8rem; }}
-.qibla-section {{ background: {card_bg}; border: 1px solid {border}; border-radius: 2px; padding: 2rem; text-align: center; margin-top: 1rem; }}
+
 .qibla-degree {{ font-family: 'Inconsolata', monospace; font-size: 3rem; color: {gold}; font-weight: 300; line-height: 1; }}
 .qibla-label {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 0.4rem; }}
-.section-label {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim}; letter-spacing: 0.25em; text-transform: uppercase; margin-bottom: 1rem; margin-top: 2rem; }}
-.hijri-date {{ font-size: 1rem; color: {muted}; font-weight: 300; letter-spacing: 0.05em; }}
-.surah-header {{ background: {card_bg}; border: 1px solid {border}; border-radius: 2px; padding: 1.8rem; text-align: center; margin-bottom: 1rem; }}
+
 .surah-name-ar {{ font-size: 2.2rem; color: #c8b89a; font-weight: 300; line-height: 1.2; }}
 .surah-name-en {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 0.4rem; }}
 .surah-meta {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {very_dim}; margin-top: 0.3rem; letter-spacing: 0.1em; }}
-.ayah-block {{ border-bottom: 1px solid {border}; padding: 1.4rem 0; }}
-.ayah-arabic {{ font-size: 1.6rem; color: {text}; text-align: right; line-height: 2.2; font-weight: 300; direction: rtl; }}
+
 .ayah-number {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {gold}; letter-spacing: 0.15em; margin-bottom: 0.4rem; }}
-.ayah-translit {{ font-size: 0.9rem; color: {dim}; line-height: 1.7; font-weight: 300; margin-top: 0.5rem; font-style: italic; letter-spacing: 0.02em; }}
-.ayah-english {{ font-size: 0.95rem; color: {muted}; line-height: 1.7; font-weight: 300; margin-top: 0.4rem; font-style: italic; }}
-.bismillah {{ font-size: 1.8rem; color: {gold}; text-align: center; padding: 1.5rem 0; direction: rtl; }}
-.location-info {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim}; letter-spacing: 0.1em; margin-bottom: 0.5rem; }}
-.dua-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 2px; padding: 1.6rem 1.8rem; margin-bottom: 0.8rem; }}
+.ayah-arabic {{ font-size: 2.0rem; color: {text}; text-align: right; line-height: 2.2; font-weight: 300; direction: rtl; }}
+.ayah-translit {{ font-size: 0.8rem; color: {dim}; line-height: 1.7; font-weight: 300; margin-top: 0.5rem; font-style: italic; letter-spacing: 0.02em; }}
+.ayah-english {{ font-size: 0.85rem; color: {muted}; line-height: 1.7; font-weight: 300; margin-top: 0.4rem; font-style: italic; }}
+
 .dua-title {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {gold}; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 0.8rem; }}
-.dua-arabic {{ font-size: 1.4rem; color: {text}; text-align: right; line-height: 2.1; font-weight: 300; direction: rtl; margin-bottom: 0.6rem; }}
-.dua-translit {{ font-size: 0.85rem; color: {dim}; line-height: 1.7; font-style: italic; margin-bottom: 0.4rem; }}
-.dua-english {{ font-size: 0.9rem; color: {muted}; line-height: 1.7; font-style: italic; }}
-.streak-banner {{ background: {streak_bg}; border: 1px solid {gold}; border-radius: 2px; padding: 1.8rem; text-align: center; margin-bottom: 1rem; }}
+.dua-arabic {{ font-size: 1.8rem; color: {text}; text-align: right; line-height: 2.1; font-weight: 300; direction: rtl; margin-bottom: 0.6rem; }}
+.dua-translit {{ font-size: 0.8rem; color: {dim}; line-height: 1.7; font-style: italic; margin-bottom: 0.4rem; }}
+.dua-english {{ font-size: 0.85rem; color: {muted}; line-height: 1.7; font-style: italic; }}
+
 .streak-number {{ font-family: 'Inconsolata', monospace; font-size: 3.5rem; color: {gold}; font-weight: 300; line-height: 1; }}
 .streak-label {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim}; letter-spacing: 0.25em; text-transform: uppercase; margin-top: 0.4rem; }}
-.tracker-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 2px; padding: 1.2rem 1.8rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }}
-.tracker-card.done {{ border-color: {tracker_done_border}; background: {tracker_done_bg}; }}
+
 .tracker-prayer-name {{ font-size: 1rem; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: #c8b89a; }}
 .tracker-status {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {very_dim}; letter-spacing: 0.15em; }}
 .tracker-status.done {{ color: #4a8a4a; }}
 .today-progress {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.1em; text-align: center; margin-bottom: 1rem; }}
+
+.ramadan-title {{ font-size: 1.4rem; font-weight: 300; letter-spacing: 0.15em; color: {ramadan_title_color}; margin-bottom: 0.2rem; }}
+.ramadan-arabic {{ font-size: 1.1rem; color: {ramadan_arabic_color}; margin-bottom: 0.8rem; direction: rtl; }}
+.ramadan-times {{ display: flex; justify-content: center; gap: 2.5rem; }}
+.ramadan-time-block {{ text-align: center; }}
+.ramadan-time-label {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim}; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 0.2rem; }}
+.ramadan-time-val {{ font-family: 'Inconsolata', monospace; font-size: 1.2rem; color: {ramadan_title_color}; font-weight: 300; }}
+.ramadan-time-val.next {{ color: {gold}; }}
+
+/* --- Calendar --- */
 .cal-grid {{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 0.5rem; }}
-.cal-day {{ aspect-ratio: 1; border-radius: 2px; display: flex; align-items: center; justify-content: center; font-family: 'Inconsolata', monospace; font-size: 0.6rem; color: {dim}; }}
+.cal-day {{ aspect-ratio: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-family: 'Inconsolata', monospace; font-size: 0.6rem; color: {dim}; }}
 .cal-empty {{ aspect-ratio: 1; }}
 .cal-0 {{ background: {card_bg}; border: 1px solid {border}; }}
 .cal-1 {{ background: #1a2a1a; }}
@@ -121,25 +176,31 @@ html, body {{ background: {_bg_gradient}; background-attachment: fixed; }}
 .cal-5 {{ background: #2e8b2e; }}
 .cal-dow {{ font-family: 'Inconsolata', monospace; font-size: 0.55rem; color: {very_dim}; text-align: center; padding-bottom: 4px; }}
 .cal-month-label {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim}; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.5rem; }}
+
 #MainMenu, footer, header {{ visibility: hidden; }}
 .block-container {{ padding-top: 3rem; max-width: 680px; }}
-.countdown-card {{ background: {streak_bg}; border: 1px solid {border}; border-radius: 2px; padding: 1.2rem 1.8rem; margin: 0.5rem 0 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }}
-.countdown-label {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim}; letter-spacing: 0.2em; text-transform: uppercase; }}
-.countdown-prayer-name {{ font-size: 1.05rem; color: #c8b89a; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; }}
-.countdown-timer {{ font-family: 'Inconsolata', monospace; font-size: 2.6rem; color: {gold}; font-weight: 300; line-height: 1.1; letter-spacing: 0.05em; margin-top: 0.15rem; }}
-.ramadan-banner {{ border-radius: 2px; padding: 1.4rem 1.8rem; margin-bottom: 1rem; text-align: center; border: 1px solid {ramadan_border_color}; background: {ramadan_bg}; }}
-.ramadan-title {{ font-size: 1.4rem; font-weight: 300; letter-spacing: 0.15em; color: {ramadan_title_color}; margin-bottom: 0.2rem; }}
-.ramadan-arabic {{ font-size: 1.1rem; color: {ramadan_arabic_color}; margin-bottom: 0.8rem; direction: rtl; }}
-.ramadan-times {{ display: flex; justify-content: center; gap: 2.5rem; }}
-.ramadan-time-block {{ text-align: center; }}
-.ramadan-time-label {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim}; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 0.2rem; }}
-.ramadan-time-val {{ font-family: 'Inconsolata', monospace; font-size: 1.2rem; color: {ramadan_title_color}; font-weight: 300; }}
-.ramadan-time-val.next {{ color: {gold}; }}
+
+/* --- Pill Buttons --- */
+div.stButton > button {{
+    border-radius: 20px !important;
+    border: 1px solid {border} !important;
+    background: {card_bg} !important;
+    color: {text} !important;
+    padding: 0.2rem 1.2rem !important;
+    min-height: 0 !important;
+    height: auto !important;
+    line-height: 1.6 !important;
+    transition: all 0.2s ease;
+}}
+div.stButton > button:hover {{
+    border-color: {gold} !important;
+    color: {gold} !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
 ARABIC_NAMES = {
-    "Fajr": "\u0627\u0644\u0641\u062c\u0631", "Sunrise": "\u0627\u0644\u0634\u0631\u0648\u0642",
+    "Fajr": "\u0627\u0644\u0641\u062c\u0631", "Sunrise": "\u0627\u0644\u0634\u0648\u0642",
     "Dhuhr": "\u0627\u0644\u0638\u0647\u0631", "Asr": "\u0627\u0644\u0639\u0635\u0631",
     "Maghrib": "\u0627\u0644\u0645\u063a\u0631\u0628", "Isha": "\u0627\u0644\u0639\u0634\u0627\u0621",
 }
@@ -181,6 +242,14 @@ DUAS = {
         {"title": "Entering the Home", "arabic": "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u0648\u064e\u0644\u064e\u062c\u0652\u0646\u064e\u0627\u060c \u0648\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u062e\u064e\u0631\u064e\u062c\u0652\u0646\u064e\u0627\u060c \u0648\u0639\u064e\u0644\u0649 \u0627\u0644\u0644\u0647\u0650 \u0631\u064e\u0628\u0651\u0650\u0646\u064e\u0627 \u062a\u064e\u0648\u064e\u0643\u0651\u064e\u0644\u0652\u0646\u064e\u0627", "translit": "Bismillahi walajna, wa bismillahi kharajna, wa 'alallahi rabbina tawakkalna", "english": "In the name of Allah we enter, in the name of Allah we leave, and upon Allah our Lord we rely."},
         {"title": "Leaving the Home", "arabic": "\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650\u060c \u062a\u064e\u0648\u064e\u0643\u0651\u064e\u0644\u0652\u062a\u064f \u0639\u064e\u0644\u0649 \u0627\u0644\u0644\u0651\u064e\u0647\u0650\u060c \u0648\u0644\u0627 \u062d\u064e\u0648\u0652\u0644\u064e \u0648\u0644\u0627 \u0642\u064f\u0648\u0651\u064e\u0629\u064e \u0625\u0650\u0644\u0651\u064e\u0627 \u0628\u0650\u0627\u0644\u0644\u0651\u064e\u0647\u0650", "translit": "Bismillah, tawakkaltu 'alallah, wa la hawla wa la quwwata illa billah", "english": "In the name of Allah, I place my trust in Allah, and there is no power nor strength except with Allah."},
     ],
+}
+
+RECITERS = {
+    "Mishary Rashid Alafasy": "ar.alafasy",
+    "Abdul Basit 'Abd us-Samad": "ar.abdulbasitmurattal",
+    "Mahmoud Khalil Al-Husary": "ar.husary",
+    "Saud Al-Shuraim": "ar.saudashuraym",
+    "Abdurrahmaan As-Sudais": "ar.abdurrahmaansudais"
 }
 
 SURAHS = [
@@ -260,8 +329,8 @@ def get_qibla(lat, lon):
     r.raise_for_status()
     return r.json()["data"]["direction"]
 
-def get_surah(number):
-    url = f"https://api.alquran.cloud/v1/surah/{number}/editions/quran-uthmani,en.transliteration,en.sahih"
+def get_surah(number, audio_edition="ar.alafasy"):
+    url = f"https://api.alquran.cloud/v1/surah/{number}/editions/quran-uthmani,en.transliteration,en.sahih,{audio_edition}"
     r = requests.get(url, timeout=15)
     r.raise_for_status()
     return r.json()["data"]
@@ -507,7 +576,7 @@ with tab1:
         components.html(f"""
 <!DOCTYPE html><html><head><style>
 *{{margin:0;padding:0;box-sizing:border-box;}}
-body{{background:{_card_bg};border:1px solid {_border_c};border-radius:2px;
+body{{background:{_card_bg};border:1px solid {_border_c};border-radius:8px;
      display:flex;flex-direction:column;align-items:center;justify-content:center;
      height:100px;font-family:'Inconsolata',monospace;}}
 .lbl{{font-size:0.62rem;color:{_dim_c};letter-spacing:0.2em;text-transform:uppercase;margin-bottom:2px;}}
@@ -632,31 +701,37 @@ with tab3:
 with tab4:
     st.markdown('<p class="section-label">Quran</p>', unsafe_allow_html=True)
 
-    from streamlit_searchbox import st_searchbox
+    surah_options = [f"{n}. {name} \u2014 {meaning}" for n, name, meaning in SURAHS]
 
-    def search_surahs(query):
-        if not query:
-            return [f"{n}. {name} \u2014 {meaning}" for n, name, meaning in SURAHS]
-        return [
-            f"{n}. {name} \u2014 {meaning}"
-            for n, name, meaning in SURAHS
-            if query.lower() in name.lower() or query.lower() in meaning.lower() or query == str(n)
-        ]
+    col_search, col_reciter = st.columns([2, 1])
+    with col_search:
+        selected = st.selectbox(
+            "Search surah...",
+            options=surah_options,
+            index=0,
+            label_visibility="collapsed"
+        )
+    with col_reciter:
+        reciter_name = st.selectbox(
+            "Reciter",
+            options=list(RECITERS.keys()),
+            index=0,
+            label_visibility="collapsed"
+        )
 
-    selected = st_searchbox(
-        search_surahs,
-        placeholder="Search surah by name, number, or meaning...",
-        key="surah_search",
-        default="1. Al-Fatiha \u2014 The Opening",
-    )
     surah_number = int(selected.split(".")[0]) if selected else 1
+    audio_edition_id = RECITERS[reciter_name]
+
+    PLAY_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>'
+    STOP_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg>'
 
     try:
         with st.spinner("Loading surah..."):
-            editions = get_surah(surah_number)
+            editions = get_surah(surah_number, audio_edition_id)
             arabic_edition = editions[0]
             translit_edition = editions[1]
             english_edition = editions[2]
+            audio_edition = editions[3]
 
         surah_info = next((s for s in SURAHS if s[0] == surah_number), None)
         revelation = arabic_edition.get("revelationType", "")
@@ -671,18 +746,162 @@ with tab4:
         )
 
         if surah_number != 9:
-            st.markdown('<div class="bismillah">\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e\u0670\u0646\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650</div>', unsafe_allow_html=True)
-
-        for ar, tr, en in zip(arabic_edition["ayahs"], translit_edition["ayahs"], english_edition["ayahs"]):
             st.markdown(
-                f'<div class="ayah-block">'
-                f'<div class="ayah-number">Ayah {ar["numberInSurah"]}</div>'
-                f'<div class="ayah-arabic">{ar["text"]}</div>'
-                f'<div class="ayah-translit">{tr["text"]}</div>'
-                f'<div class="ayah-english">{en["text"]}</div>'
-                f'</div>',
+                '<div class="bismillah">\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e0670\u0646\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650</div>',
                 unsafe_allow_html=True
             )
+
+        # --- Render ayahs wrapped in a surah-scoped root container ---
+        import html as pyhtml
+
+        root_id = f"surah-root-{surah_number}"
+
+        html_blocks = f'<div id="{root_id}" class="surah-root" data-surah="{surah_number}">'
+        for ar, tr, en, au in zip(
+            arabic_edition["ayahs"],
+            translit_edition["ayahs"],
+            english_edition["ayahs"],
+            audio_edition["ayahs"],
+        ):
+            num = ar["numberInSurah"]
+            audio_url = au["audio"]
+            audio_attr = pyhtml.escape(audio_url, quote=True)
+
+            html_blocks += f"""
+<div class="ayah-block" id="ayah-{surah_number}-{num}">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+    <div class="ayah-number">Ayah {num}</div>
+    <button class="play-btn"
+            id="play-btn-{surah_number}-{num}"
+            data-audio="{audio_attr}"
+            data-num="{num}"
+            data-surah="{surah_number}">
+      {PLAY_SVG}
+    </button>
+  </div>
+  <div class="ayah-arabic">{ar["text"]}</div>
+  <div class="ayah-translit">{tr["text"]}</div>
+  <div class="ayah-english">{en["text"]}</div>
+</div>
+"""
+        html_blocks += "</div>"
+
+        st.markdown(html_blocks, unsafe_allow_html=True)
+
+        # --- JS: event delegation + scoped root + cleanup (NO key=) ---
+        import streamlit.components.v1 as components
+        nonce = str(uuid.uuid4())
+
+        js = f"""
+<script>
+(function() {{
+  const parentDoc = window.parent.document;
+  const SURAH_ID = {surah_number};
+  const ROOT_ID = "surah-root-{surah_number}";
+  const playIcon = `{PLAY_SVG}`;
+  const stopIcon = `{STOP_SVG}`;
+  const NONCE = "{nonce}";
+
+  // Stop any previous audio
+  try {{
+    if (parentDoc.__quranAudio) {{
+      parentDoc.__quranAudio.pause();
+      parentDoc.__quranAudio.currentTime = 0;
+    }}
+  }} catch(e) {{}}
+
+  // New audio instance for this run
+  const audio = new Audio();
+  parentDoc.__quranAudio = audio;
+
+  // Global state
+  parentDoc.__quranState = parentDoc.__quranState || {{}};
+  parentDoc.__quranState.currentSurah = SURAH_ID;
+  parentDoc.__quranState.currentAyah = null;
+
+  // Remove old click handler if present
+  if (parentDoc.__quranClickHandler) {{
+    parentDoc.removeEventListener("click", parentDoc.__quranClickHandler, true);
+    parentDoc.__quranClickHandler = null;
+  }}
+
+  function getRoot() {{
+    return parentDoc.getElementById(ROOT_ID);
+  }}
+
+  function clearUI(root) {{
+    root.querySelectorAll(".ayah-block").forEach(b => b.classList.remove("playing-ayah"));
+    root.querySelectorAll(".play-btn").forEach(b => b.innerHTML = playIcon);
+  }}
+
+  function play(btn, root) {{
+    const url = btn.dataset.audio;
+    const num = parseInt(btn.dataset.num, 10);
+
+    if (parentDoc.__quranState.currentAyah === num && !audio.paused) {{
+      audio.pause();
+      audio.currentTime = 0;
+      clearUI(root);
+      parentDoc.__quranState.currentAyah = null;
+      return;
+    }}
+
+    clearUI(root);
+
+    const block = parentDoc.getElementById(`ayah-${{SURAH_ID}}-${{num}}`);
+    if (block) {{
+      block.classList.add("playing-ayah");
+      block.scrollIntoView({{ behavior: "smooth", block: "center" }});
+    }}
+
+    audio.src = url; // always pulled from clicked button's current dataset
+    audio.play();
+    parentDoc.__quranState.currentAyah = num;
+    btn.innerHTML = stopIcon;
+  }}
+
+  // Event delegation (capture) — robust across Streamlit rerenders
+  parentDoc.__quranClickHandler = function(e) {{
+    const root = getRoot();
+    if (!root) return;
+    if (!root.contains(e.target)) return;
+
+    const btn = e.target.closest(".play-btn");
+    if (!btn) return;
+
+    // Ensure the button matches current surah
+    if (parseInt(btn.dataset.surah, 10) !== SURAH_ID) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    play(btn, root);
+  }};
+  parentDoc.addEventListener("click", parentDoc.__quranClickHandler, true);
+
+  audio.onended = () => {{
+    const root = getRoot();
+    if (!root) return;
+
+    const currentAyah = parentDoc.__quranState.currentAyah;
+    if (!currentAyah) return;
+
+    const currentBtn = parentDoc.getElementById(`play-btn-${{SURAH_ID}}-${{currentAyah}}`);
+    if (currentBtn) currentBtn.innerHTML = playIcon;
+
+    const nextNum = currentAyah + 1;
+    const nextBtn = parentDoc.getElementById(`play-btn-${{SURAH_ID}}-${{nextNum}}`);
+    if (nextBtn) {{
+      nextBtn.click();
+    }} else {{
+      clearUI(root);
+      parentDoc.__quranState.currentAyah = null;
+    }}
+  }};
+}})();
+</script>
+"""
+
+        components.html(js, height=0, width=0)
 
     except Exception as e:
         st.error(f"Could not load surah: {e}")
