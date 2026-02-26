@@ -31,11 +31,42 @@ streak_bg   = "#131210" if is_dark else "#fdf6ec"
 tracker_done_bg = "#0f130f" if is_dark else "#f0f7f0"
 tracker_done_border = "#2a3a2a" if is_dark else "#a0c8a0"
 
+ramadan_border_color = "#c8692e" if is_dark else "#d4783a"
+ramadan_title_color  = "#e8a05a" if is_dark else "#7a3010"
+ramadan_arabic_color = "#c8692e" if is_dark else "#a04820"
+ramadan_bg = "linear-gradient(135deg, #1a0d0a 0%, #2a1505 100%)" if is_dark else "linear-gradient(135deg, #fdf6ed 0%, #faecd8 100%)"
+
+_cached_tz = st.session_state.get("cached_timezone", "UTC")
+try:
+    _tz = pytz.timezone(_cached_tz)
+    _local_now = datetime.now(_tz)
+except Exception:
+    _local_now = datetime.now()
+_h = _local_now.hour
+if is_dark:
+    if   4 <= _h <  6: _bg_gradient = "linear-gradient(170deg, #0d0820 0%, #1e103a 60%, #2d1a4a 100%)"
+    elif 6 <= _h <  8: _bg_gradient = "linear-gradient(170deg, #0d0810 0%, #2a1008 50%, #5a2e0a 100%)"
+    elif 8 <= _h < 12: _bg_gradient = "linear-gradient(170deg, #040c18 0%, #071828 60%, #0a2035 100%)"
+    elif 12 <= _h < 15: _bg_gradient = "linear-gradient(170deg, #04080f 0%, #06101e 50%, #0a1830 100%)"
+    elif 15 <= _h < 17: _bg_gradient = "linear-gradient(170deg, #06050f 0%, #180f28 50%, #2a1a08 100%)"
+    elif 17 <= _h < 20: _bg_gradient = "linear-gradient(170deg, #08030a 0%, #280a10 30%, #3a1208 60%, #1a0808 100%)"
+    else:               _bg_gradient = "linear-gradient(170deg, #020205 0%, #06060f 60%, #0a0a18 100%)"
+else:
+    if   4 <= _h <  6: _bg_gradient = "linear-gradient(170deg, #e0d8f0 0%, #f0e8f8 100%)"
+    elif 6 <= _h <  8: _bg_gradient = "linear-gradient(170deg, #fef0d8 0%, #fde0c0 50%, #fac8a0 100%)"
+    elif 8 <= _h < 12: _bg_gradient = "linear-gradient(170deg, #e8f0fc 0%, #d8e8f8 100%)"
+    elif 12 <= _h < 15: _bg_gradient = "linear-gradient(170deg, #e0eaf8 0%, #cce0f4 100%)"
+    elif 15 <= _h < 17: _bg_gradient = "linear-gradient(170deg, #fef4e0 0%, #fde8c8 100%)"
+    elif 17 <= _h < 20: _bg_gradient = "linear-gradient(170deg, #fde8d8 0%, #f8d0c0 40%, #f0c0d0 100%)"
+    else:               _bg_gradient = "linear-gradient(170deg, #e8e4f4 0%, #d8d0ec 100%)"
+
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Inconsolata:wght@300;400&display=swap');
-html, body, [class*="css"] {{ font-family: 'Cormorant Garamond', serif; background-color: {bg}; color: {text}; }}
-.stApp {{ background-color: {bg}; }}
+html, body, [class*="css"] {{ font-family: 'Cormorant Garamond', serif; color: {text}; }}
+[class*="css"] {{ background-color: {bg}; }}
+html, body {{ background: {_bg_gradient}; background-attachment: fixed; }}
+.stApp {{ background: {_bg_gradient} !important; background-attachment: fixed; min-height: 100vh; }}
 .stTabs [data-baseweb="tab-list"] {{ background-color: {bg}; border-bottom: 1px solid {border}; gap: 0; }}
 .stTabs [data-baseweb="tab"] {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: {dim}; padding: 0.6rem 1.2rem; }}
 .stTabs [aria-selected="true"] {{ color: {gold} !important; border-bottom: 1px solid {gold} !important; }}
@@ -92,6 +123,18 @@ html, body, [class*="css"] {{ font-family: 'Cormorant Garamond', serif; backgrou
 .cal-month-label {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim}; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.5rem; }}
 #MainMenu, footer, header {{ visibility: hidden; }}
 .block-container {{ padding-top: 3rem; max-width: 680px; }}
+.countdown-card {{ background: {streak_bg}; border: 1px solid {border}; border-radius: 2px; padding: 1.2rem 1.8rem; margin: 0.5rem 0 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }}
+.countdown-label {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim}; letter-spacing: 0.2em; text-transform: uppercase; }}
+.countdown-prayer-name {{ font-size: 1.05rem; color: #c8b89a; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; }}
+.countdown-timer {{ font-family: 'Inconsolata', monospace; font-size: 2.6rem; color: {gold}; font-weight: 300; line-height: 1.1; letter-spacing: 0.05em; margin-top: 0.15rem; }}
+.ramadan-banner {{ border-radius: 2px; padding: 1.4rem 1.8rem; margin-bottom: 1rem; text-align: center; border: 1px solid {ramadan_border_color}; background: {ramadan_bg}; }}
+.ramadan-title {{ font-size: 1.4rem; font-weight: 300; letter-spacing: 0.15em; color: {ramadan_title_color}; margin-bottom: 0.2rem; }}
+.ramadan-arabic {{ font-size: 1.1rem; color: {ramadan_arabic_color}; margin-bottom: 0.8rem; direction: rtl; }}
+.ramadan-times {{ display: flex; justify-content: center; gap: 2.5rem; }}
+.ramadan-time-block {{ text-align: center; }}
+.ramadan-time-label {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim}; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 0.2rem; }}
+.ramadan-time-val {{ font-family: 'Inconsolata', monospace; font-size: 1.2rem; color: {ramadan_title_color}; font-weight: 300; }}
+.ramadan-time-val.next {{ color: {gold}; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -404,12 +447,86 @@ with tab1:
                 lat = meta["latitude"]
                 lon = meta["longitude"]
             timezone_str = meta.get("timezone", timezone_str)
+            st.session_state["cached_timezone"] = timezone_str
             qibla_deg = get_qibla(lat, lon)
 
         hijri_str = f"{hijri['day']} {hijri['month']['en']} {hijri['year']} AH"
         st.markdown(f'<p class="hijri-date">{hijri_str}</p>', unsafe_allow_html=True)
+
+        # ── Ramadan banner ────────────────────────────────────────────
+        is_ramadan = int(hijri.get("month", {}).get("number", 0)) == 9
+        if is_ramadan:
+            _suhoor_t = to_12h(timings.get("Fajr", "05:00"))
+            _iftar_t  = to_12h(timings.get("Maghrib", "18:00"))
+            try:
+                _rtz   = pytz.timezone(timezone_str)
+                _now_r = datetime.now(_rtz)
+            except Exception:
+                _now_r = datetime.now()
+            _fajr_raw  = timings.get("Fajr", "05:00")
+            _fajr_mins = int(_fajr_raw.split(":")[0]) * 60 + int(_fajr_raw.split(":")[1])
+            _now_mins  = _now_r.hour * 60 + _now_r.minute
+            _sc = "ramadan-time-val next" if _now_mins < _fajr_mins else "ramadan-time-val"
+            _ic = "ramadan-time-val next" if _now_mins >= _fajr_mins else "ramadan-time-val"
+            st.markdown(
+                f'<div class="ramadan-banner">'
+                f'<div class="ramadan-title">Ramadan Mubarak</div>'
+                f'<div class="ramadan-arabic">\u0631\u0645\u0636\u0627\u0646 \u0645\u0628\u0627\u0631\u0643</div>'
+                f'<div class="ramadan-times">'
+                f'<div class="ramadan-time-block"><div class="ramadan-time-label">Suhoor ends</div>'
+                f'<div class="{_sc}">{_suhoor_t}</div></div>'
+                f'<div class="ramadan-time-block"><div class="ramadan-time-label">Iftar</div>'
+                f'<div class="{_ic}">{_iftar_t}</div></div>'
+                f'</div></div>',
+                unsafe_allow_html=True
+            )
+
         st.markdown('<p class="section-label">Prayer Times</p>', unsafe_allow_html=True)
         next_prayer = find_next_prayer(timings, timezone_str)
+
+        # ── Countdown timer ───────────────────────────────────────────
+        try:
+            _ctz   = pytz.timezone(timezone_str)
+            _now_c = datetime.now(_ctz)
+        except Exception:
+            _now_c = datetime.now()
+        _nts     = timings.get(next_prayer, "00:00")
+        _nh, _nm = int(_nts.split(":")[0]), int(_nts.split(":")[1])
+        _ntgt    = _now_c.replace(hour=_nh, minute=_nm, second=0, microsecond=0)
+        if _ntgt <= _now_c:
+            _ntgt += timedelta(days=1)
+        _tms     = int(_ntgt.timestamp() * 1000)
+        _sdiff   = int((_ntgt - _now_c).total_seconds())
+        _sh, _sr = divmod(_sdiff, 3600)
+        _sm, _ss = divmod(_sr, 60)
+        _static  = f"{_sh:02d}:{_sm:02d}:{_ss:02d}"
+        import streamlit.components.v1 as components
+        _card_bg  = "#131210" if is_dark else "#fdf6ec"
+        _border_c = "#1e1e1e" if is_dark else "#e0d8d0"
+        _dim_c    = "#4a4540" if is_dark else "#aaa099"
+        components.html(f"""
+<!DOCTYPE html><html><head><style>
+*{{margin:0;padding:0;box-sizing:border-box;}}
+body{{background:{_card_bg};border:1px solid {_border_c};border-radius:2px;
+     display:flex;flex-direction:column;align-items:center;justify-content:center;
+     height:100px;font-family:'Inconsolata',monospace;}}
+.lbl{{font-size:0.62rem;color:{_dim_c};letter-spacing:0.2em;text-transform:uppercase;margin-bottom:2px;}}
+.name{{font-size:1rem;color:#c8b89a;font-weight:400;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;}}
+.cd{{font-size:2.4rem;color:#c8a96e;font-weight:300;line-height:1;letter-spacing:0.06em;}}
+</style></head><body>
+<div class="lbl">next prayer in</div>
+<div class="name">{next_prayer}</div>
+<div class="cd" id="cd">{_static}</div>
+<script>
+var t=new Date({_tms});
+function tick(){{var d=t-Date.now();if(d<0)d=0;
+  var h=Math.floor(d/3600000),m=Math.floor(d%3600000/60000),s=Math.floor(d%60000/1000);
+  document.getElementById('cd').textContent=
+    String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}}
+tick();setInterval(tick,1000);
+</script></body></html>
+""", height=108)
 
         for name in PRAYER_ORDER:
             if name not in timings:
