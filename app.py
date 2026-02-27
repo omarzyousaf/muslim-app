@@ -43,6 +43,23 @@ tracker_done_bg = "#0f130f" if is_dark else "#f0f7f0"
 tracker_done_border = "#2a3a2a" if is_dark else "#a0c8a0"
 shadow      = "0 4px 12px rgba(0, 0, 0, 0.3)" if is_dark else "0 4px 12px rgba(0, 0, 0, 0.05)"
 
+# Card elevation system
+card_radius  = "16px"
+card_shadow  = ("0 2px 12px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.025)"
+                if is_dark else
+                "0 2px 8px rgba(0,0,0,0.055), 0 0 0 1px rgba(0,0,0,0.022)")
+hover_shadow = ("0 6px 28px rgba(0,0,0,0.44), 0 0 0 1px rgba(255,255,255,0.04)"
+                if is_dark else
+                "0 6px 20px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.03)")
+
+# Scholar chat surface colours
+sc_user_bg     = ("linear-gradient(135deg,rgba(200,169,110,0.21),rgba(200,169,110,0.10))"
+                  if is_dark else
+                  "linear-gradient(135deg,rgba(180,145,75,0.16),rgba(200,169,110,0.07))")
+sc_user_shadow = "0 2px 10px rgba(0,0,0,0.28)" if is_dark else "0 2px 8px rgba(0,0,0,0.07)"
+sc_asst_bg     = "#131210" if is_dark else "#fafaf8"
+sc_input_bg    = "#0e0e0e" if is_dark else "#f7f4ef"
+
 ramadan_border_color = "#c8692e" if is_dark else "#d4783a"
 ramadan_title_color  = "#e8a05a" if is_dark else "#7a3010"
 ramadan_arabic_color = "#c8692e" if is_dark else "#a04820"
@@ -70,6 +87,11 @@ else:
 _wcache  = st.session_state.get("cached_weather", {})
 _wcode   = int(_wcache.get("weathercode", 0))
 _wis_day = int(_wcache.get("is_day", 1 if phase in ("dawn", "day") else 0))
+# Open-Meteo's is_day is binary (0 before astronomical sunrise).
+# Dawn and sunset are transitional — always treat as "lit" so the
+# correct dawn/sunset gradient renders even at 5:19am.
+if phase in ("dawn", "sunset"):
+    _wis_day = 1
 
 # WMO code → condition label
 if _wcode == 0:
@@ -172,7 +194,7 @@ elif _wcond == "clear" and not _wis_day:
         _ssz = round(_prng.uniform(1.0, 2.8), 1)
         _sop = round(_prng.uniform(0.35, 0.95), 2)
         _sdl = round(_prng.uniform(0, 8), 1)
-        _sdr = round(_prng.uniform(2.5, 6.5), 1)
+        _sdr = round(_prng.uniform(3.5, 9.0), 1)   # slower twinkle = calmer night sky
         _overlay_html += (f'<div class="wx-star" style="left:{_sx}%;top:{_sy}%;'
                           f'width:{_ssz}px;height:{_ssz}px;'
                           f'--star-op:{_sop};animation-delay:{_sdl}s;animation-duration:{_sdr}s;"></div>')
@@ -202,12 +224,13 @@ elif _wcond == "fog":
         _overlay_html += f'<div class="wx-mist" style="top:{_ft};height:{_fh};animation-duration:{_fd};animation-delay:{_fdl};"></div>'
 
 elif _wcond in ("rain", "thunderstorm"):
-    for _ in range(85):
-        _rx  = _prng.randint(-5, 105)
-        _rdl = round(_prng.uniform(0, 2.5), 2)
-        _rdr = round(_prng.uniform(0.45, 1.0), 2)
-        _rh  = _prng.randint(55, 100)
-        _rop = round(_prng.uniform(0.25, 0.60), 2)
+    # More drops, wider delay range, longer durations → smooth iOS-like curtain
+    for _ in range(100):
+        _rx  = _prng.randint(-8, 108)
+        _rdl = round(_prng.uniform(0, 4.0), 2)    # wider stagger = no wave effect
+        _rdr = round(_prng.uniform(0.65, 1.25), 2) # slower = longer visible streaks
+        _rh  = _prng.randint(70, 130)
+        _rop = round(_prng.uniform(0.20, 0.55), 2)
         _overlay_html += (f'<div class="wx-rain" style="left:{_rx}%;'
                           f'animation-delay:{_rdl}s;animation-duration:{_rdr}s;'
                           f'height:{_rh}px;opacity:{_rop};"></div>')
@@ -265,20 +288,20 @@ html, body {{
 /* ── Keyframes ───────────────────────────────────────── */
 @keyframes sun-glow {{
     0%, 100% {{
-        box-shadow: 0 0 70px 25px rgba(255,218,68,0.38),
-                    0 0 160px 65px rgba(255,175,20,0.18),
-                    0 0 320px 130px rgba(255,140,0,0.08);
+        box-shadow: 0 0 60px 20px rgba(255,218,68,0.32),
+                    0 0 140px 55px rgba(255,175,20,0.14),
+                    0 0 280px 110px rgba(255,140,0,0.06);
     }}
     50% {{
-        box-shadow: 0 0 100px 42px rgba(255,218,68,0.58),
-                    0 0 240px 100px rgba(255,175,20,0.28),
-                    0 0 480px 200px rgba(255,140,0,0.13);
+        box-shadow: 0 0 85px 35px rgba(255,218,68,0.48),
+                    0 0 200px 85px rgba(255,175,20,0.22),
+                    0 0 400px 170px rgba(255,140,0,0.10);
     }}
 }}
 
 @keyframes wx-twinkle {{
     0%, 100% {{ opacity: var(--star-op, 0.7); transform: scale(1); }}
-    45%       {{ opacity: calc(var(--star-op, 0.7) * 0.10); transform: scale(0.6); }}
+    45%       {{ opacity: calc(var(--star-op, 0.7) * 0.20); transform: scale(0.82); }}
 }}
 
 @keyframes wx-rain-fall {{
@@ -335,23 +358,25 @@ html, body {{
     opacity: var(--star-op, 0.7);
 }}
 
-/* ── Rain streaks ────────────────────────────────────── */
+/* ── Rain streaks — iOS-style long smooth streaks ────── */
 .wx-rain {{
     position: absolute;
-    top: -150px;
-    width: 1px;
-    height: 80px;
+    top: -220px;
+    width: 1.5px;
+    height: 110px;
     background: linear-gradient(
         to bottom,
         transparent 0%,
-        rgba(180, 210, 245, 0.55) 42%,
-        rgba(200, 228, 255, 0.75) 70%,
+        rgba(180, 210, 245, 0.35) 30%,
+        rgba(200, 228, 255, 0.65) 65%,
+        rgba(210, 235, 255, 0.50) 85%,
         transparent 100%
     );
-    border-radius: 1px;
+    border-radius: 2px;
     animation: wx-rain-fall linear infinite;
-    transform: rotate(12deg);
+    transform: rotate(14deg);
     transform-origin: top center;
+    will-change: transform;
 }}
 
 /* ── Snowflakes ──────────────────────────────────────── */
@@ -413,160 +438,293 @@ html, body {{
     z-index: 2;
 }}
 
-/* --- Tabs --- */
-.stTabs [data-baseweb="tab-list"] {{ background-color: {bg}; border-bottom: 1px solid {border}; gap: 0; }}
-.stTabs [data-baseweb="tab-panel"] {{ animation: fadeIn 0.4s ease-out; }}
-.stTabs [data-baseweb="tab"] {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: {dim}; padding: 1rem 1.5rem; }}
-.stTabs [aria-selected="true"] {{ color: {gold} !important; border-bottom: 1px solid {gold} !important; }}
+/* ═══ App Chrome ═══════════════════════════════════════════════════════════ */
+#MainMenu, footer, header {{ visibility: hidden; }}
+.block-container {{
+    padding-top: 3.5rem !important;
+    padding-bottom: 5rem !important;
+    max-width: 700px !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+}}
 
-/* --- Headers & Typography --- */
-.main-title {{ font-size: 3.2rem; font-weight: 300; letter-spacing: 0.2em; text-transform: uppercase; color: {text}; margin-bottom: 0; line-height: 1; }}
-.arabic-sub {{ font-size: 1.6rem; color: {muted}; letter-spacing: 0.05em; margin-top: 0.2rem; font-weight: 300; }}
-.date-line {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 0.5rem; }}
-.clock-wrap {{ display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-start; padding-top: 0.1rem; }}
-.clock-time {{ font-family: 'Inconsolata', monospace; font-size: 2.8rem; font-weight: 200; letter-spacing: 0.04em; color: {text}; line-height: 1; margin: 0; }}
-.clock-loc  {{ font-family: 'Inconsolata', monospace; font-size: 0.58rem; color: {dim}; letter-spacing: 0.22em; text-transform: uppercase; margin-top: 0.45rem; }}
-.divider {{ border: none; border-top: 1px solid {border}; margin: 2rem 0; }}
-.section-label {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim}; letter-spacing: 0.25em; text-transform: uppercase; margin-bottom: 1rem; margin-top: 2rem; }}
-.hijri-date {{ font-size: 1rem; color: {muted}; font-weight: 300; letter-spacing: 0.05em; }}
-.location-info {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim}; letter-spacing: 0.1em; margin-bottom: 0.5rem; }}
-.bismillah {{ font-size: 1.8rem; color: {gold}; text-align: center; padding: 1.5rem 0; direction: rtl; }}
-
-/* --- Cards (Global 8px Radius & Shadow) --- */
-.prayer-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.4rem 1.8rem; margin-bottom: 0.6rem; display: flex; justify-content: space-between; align-items: center; }}
-.prayer-card.next {{ border-color: {gold}; background: {streak_bg}; }}
-.qibla-section {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 2rem; text-align: center; margin-top: 1rem; }}
-.surah-header {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.8rem; text-align: center; margin-bottom: 1rem; }}
-.ayah-block {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.4rem 1.8rem; margin-bottom: 1rem; }}
-.dua-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.6rem 1.8rem; margin-bottom: 0.8rem; }}
-.streak-banner {{ background: {streak_bg}; border: 1px solid {gold}; border-radius: 8px; box-shadow: {shadow}; padding: 1.8rem; text-align: center; margin-bottom: 1rem; }}
-.tracker-card {{ background: {card_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.2rem 1.8rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }}
-.tracker-card.done {{ border-color: {tracker_done_border}; background: {tracker_done_bg}; }}
-.countdown-card {{ background: {streak_bg}; border: 1px solid {border}; border-radius: 8px; box-shadow: {shadow}; padding: 1.2rem 1.8rem; margin: 0.5rem 0 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }}
-.ramadan-banner {{ border-radius: 8px; padding: 1.4rem 1.8rem; margin-bottom: 1rem; text-align: center; border: 1px solid {ramadan_border_color}; background: {ramadan_bg}; box-shadow: {shadow}; }}
-
-/* --- Audio Player Styles --- */
-.play-btn {{
-    background: none;
-    border: none;
+/* ═══ Tab Bar — native-app feel ════════════════════════════════════════════ */
+.stTabs [data-baseweb="tab-list"] {{
+    background: {"rgba(9,9,9,0.88)" if is_dark else "rgba(248,245,241,0.92)"};
+    border-bottom: 1px solid {border};
+    gap: 0;
+    padding: 0 0.25rem;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}}
+.stTabs [data-baseweb="tab-panel"] {{
+    animation: fadeIn 0.35s ease-out;
+    padding-top: 2rem;
+}}
+.stTabs [data-baseweb="tab"] {{
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
     color: {dim};
-    font-size: 1.1rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    padding: 0 0.5rem;
+    padding: 1.05rem 1.2rem;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
 }}
-.play-btn:hover {{
-    color: {gold};
-    transform: scale(1.1);
+.stTabs [aria-selected="true"] {{
+    color: {text} !important;
+    border-bottom: 2px solid {gold} !important;
+    background: transparent !important;
 }}
+.stTabs [data-baseweb="tab"]:hover {{ color: {muted} !important; }}
+
+/* ═══ Typography ════════════════════════════════════════════════════════════ */
+.main-title {{
+    font-size: 3.4rem; font-weight: 200; letter-spacing: 0.25em;
+    text-transform: uppercase; color: {text}; margin-bottom: 0; line-height: 1;
+}}
+.arabic-sub {{
+    font-size: 1.5rem; color: {muted}; letter-spacing: 0.08em;
+    margin-top: 0.4rem; font-weight: 300; line-height: 1.4;
+}}
+.date-line {{
+    font-family: 'Inconsolata', monospace; font-size: 0.67rem; color: {dim};
+    letter-spacing: 0.18em; text-transform: uppercase; margin-top: 0.7rem;
+}}
+.clock-wrap {{
+    display: flex; flex-direction: column;
+    align-items: flex-end; justify-content: flex-start; padding-top: 0.1rem;
+}}
+.clock-time {{
+    font-family: 'Inconsolata', monospace; font-size: 2.8rem; font-weight: 200;
+    letter-spacing: 0.04em; color: {text}; line-height: 1; margin: 0;
+}}
+.clock-loc {{
+    font-family: 'Inconsolata', monospace; font-size: 0.56rem; color: {dim};
+    letter-spacing: 0.24em; text-transform: uppercase; margin-top: 0.5rem;
+}}
+.divider {{ border: none; border-top: 1px solid {border}; margin: 2.5rem 0; }}
+.section-label {{
+    font-family: 'Inconsolata', monospace; font-size: 0.6rem; color: {dim};
+    letter-spacing: 0.32em; text-transform: uppercase;
+    margin-bottom: 1.25rem; margin-top: 2.75rem;
+}}
+.hijri-date {{ font-size: 1rem; color: {muted}; font-weight: 300; letter-spacing: 0.06em; }}
+.location-info {{
+    font-family: 'Inconsolata', monospace; font-size: 0.67rem; color: {dim};
+    letter-spacing: 0.1em; margin-bottom: 0.75rem;
+}}
+.bismillah {{ font-size: 1.9rem; color: {gold}; text-align: center; padding: 1.75rem 0; direction: rtl; opacity: 0.88; }}
+
+/* ═══ Card System — 16px radius, layered shadows, hover lift ════════════════ */
+.prayer-card {{
+    background: {card_bg}; border: 1px solid {border};
+    border-radius: {card_radius}; box-shadow: {card_shadow};
+    padding: 1.5rem 1.8rem; margin-bottom: 0.75rem;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: box-shadow 0.22s ease, transform 0.22s ease;
+}}
+.prayer-card:hover {{ box-shadow: {hover_shadow}; transform: translateY(-1px); }}
+.prayer-card.next {{ border-color: rgba(200,169,110,0.45); background: {streak_bg}; }}
+
+.qibla-section {{
+    background: {card_bg}; border: 1px solid {border};
+    border-radius: {card_radius}; box-shadow: {card_shadow};
+    padding: 2.25rem 2rem; text-align: center; margin-top: 1.25rem;
+}}
+.surah-header {{
+    background: {card_bg}; border: 1px solid {border};
+    border-radius: {card_radius}; box-shadow: {card_shadow};
+    padding: 2rem; text-align: center; margin-bottom: 1.25rem;
+}}
+.ayah-block {{
+    background: {card_bg}; border: 1px solid {border};
+    border-radius: {card_radius}; box-shadow: {card_shadow};
+    padding: 1.5rem 1.8rem; margin-bottom: 1rem;
+    transition: box-shadow 0.2s ease;
+}}
+.ayah-block:hover {{ box-shadow: {hover_shadow}; }}
+.dua-card {{
+    background: {card_bg}; border: 1px solid {border};
+    border-radius: {card_radius}; box-shadow: {card_shadow};
+    padding: 1.75rem 1.8rem; margin-bottom: 1rem;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}}
+.dua-card:hover {{ box-shadow: {hover_shadow}; transform: translateY(-1px); }}
+.streak-banner {{
+    background: {streak_bg}; border: 1px solid rgba(200,169,110,0.18);
+    border-radius: {card_radius}; box-shadow: {card_shadow};
+    padding: 2rem; text-align: center; margin-bottom: 1.25rem;
+}}
+.tracker-card {{
+    background: {card_bg}; border: 1px solid {border};
+    border-radius: {card_radius}; box-shadow: {card_shadow};
+    padding: 1.25rem 1.8rem; margin-bottom: 0.6rem;
+    display: flex; justify-content: space-between; align-items: center;
+    transition: box-shadow 0.2s ease;
+}}
+.tracker-card.done {{ border-color: {tracker_done_border}; background: {tracker_done_bg}; }}
+.countdown-card {{
+    background: {streak_bg}; border: 1px solid {border};
+    border-radius: {card_radius}; box-shadow: {card_shadow};
+    padding: 1.4rem 1.8rem; margin: 0.75rem 0 1.25rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+}}
+.ramadan-banner {{
+    border-radius: {card_radius}; padding: 1.6rem 1.8rem; margin-bottom: 1.25rem;
+    text-align: center; border: 1px solid {ramadan_border_color};
+    background: {ramadan_bg}; box-shadow: {card_shadow};
+}}
+
+/* ═══ Audio Player ══════════════════════════════════════════════════════════ */
+.play-btn {{
+    background: none; border: none; color: {dim};
+    font-size: 1.1rem; cursor: pointer;
+    transition: all 0.2s ease; padding: 0 0.5rem;
+}}
+.play-btn:hover {{ color: {gold}; transform: scale(1.1); }}
 .playing-ayah {{
-    border-color: {gold} !important;
-    background-color: {"#2a2010" if is_dark else "#fdf3e1"} !important;
-    box-shadow: 0 0 15px rgba(200, 169, 110, 0.15) !important;
+    border-color: rgba(200,169,110,0.4) !important;
+    background-color: {"#1e1908" if is_dark else "#fdf3e1"} !important;
+    box-shadow: 0 0 20px rgba(200,169,110,0.12) !important;
     transition: all 0.4s ease;
 }}
 
-/* --- Component Specifics --- */
-.prayer-name {{ font-size: 1.1rem; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: #c8b89a; }}
-.prayer-name-arabic {{ font-size: 0.85rem; color: {dim}; margin-top: 0.1rem; }}
-.prayer-time {{ font-family: 'Inconsolata', monospace; font-size: 1.3rem; color: {text}; font-weight: 300; }}
-.next-badge {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {gold}; letter-spacing: 0.2em; text-transform: uppercase; margin-left: 0.8rem; }}
+/* ═══ Prayer Component ══════════════════════════════════════════════════════ */
+.prayer-name {{
+    font-size: 1rem; font-weight: 300; letter-spacing: 0.12em;
+    text-transform: uppercase; color: {text}; opacity: 0.85;
+}}
+.prayer-name-arabic {{ font-size: 0.88rem; color: {muted}; margin-top: 0.15rem; }}
+.prayer-time {{
+    font-family: 'Inconsolata', monospace; font-size: 1.35rem;
+    color: {text}; font-weight: 300; letter-spacing: 0.03em;
+}}
+.next-badge {{
+    font-family: 'Inconsolata', monospace; font-size: 0.6rem; color: {gold};
+    letter-spacing: 0.22em; text-transform: uppercase; margin-left: 0.75rem; opacity: 0.9;
+}}
+.qibla-degree {{
+    font-family: 'Inconsolata', monospace; font-size: 3rem;
+    color: {gold}; font-weight: 200; line-height: 1;
+}}
+.qibla-label {{
+    font-family: 'Inconsolata', monospace; font-size: 0.68rem; color: {dim};
+    letter-spacing: 0.22em; text-transform: uppercase; margin-top: 0.5rem;
+}}
 
-.qibla-degree {{ font-family: 'Inconsolata', monospace; font-size: 3rem; color: {gold}; font-weight: 300; line-height: 1; }}
-.qibla-label {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 0.4rem; }}
+/* ═══ Quran Component ═══════════════════════════════════════════════════════ */
+.surah-name-ar {{ font-size: 2.2rem; color: {text}; font-weight: 300; line-height: 1.25; opacity: 0.9; }}
+.surah-name-en {{
+    font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim};
+    letter-spacing: 0.22em; text-transform: uppercase; margin-top: 0.5rem;
+}}
+.surah-meta {{
+    font-family: 'Inconsolata', monospace; font-size: 0.65rem;
+    color: {very_dim}; margin-top: 0.35rem; letter-spacing: 0.1em;
+}}
+.ayah-number {{
+    font-family: 'Inconsolata', monospace; font-size: 0.62rem;
+    color: {gold}; letter-spacing: 0.18em; margin-bottom: 0.5rem; opacity: 0.7;
+}}
+.ayah-arabic {{
+    font-size: 2.0rem; color: {text}; text-align: right;
+    line-height: 2.25; font-weight: 300; direction: rtl;
+}}
+.ayah-translit {{
+    font-size: 0.8rem; color: {dim}; line-height: 1.75; font-weight: 300;
+    margin-top: 0.6rem; font-style: italic; letter-spacing: 0.02em;
+}}
+.ayah-english {{
+    font-size: 0.88rem; color: {muted}; line-height: 1.75;
+    font-weight: 300; margin-top: 0.45rem; font-style: italic;
+}}
 
-.surah-name-ar {{ font-size: 2.2rem; color: #c8b89a; font-weight: 300; line-height: 1.2; }}
-.surah-name-en {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 0.4rem; }}
-.surah-meta {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {very_dim}; margin-top: 0.3rem; letter-spacing: 0.1em; }}
+/* ═══ Duas Component ════════════════════════════════════════════════════════ */
+.dua-title {{
+    font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {gold};
+    letter-spacing: 0.24em; text-transform: uppercase; margin-bottom: 1rem; opacity: 0.85;
+}}
+.dua-arabic {{
+    font-size: 1.8rem; color: {text}; text-align: right;
+    line-height: 2.15; font-weight: 300; direction: rtl; margin-bottom: 0.75rem;
+}}
+.dua-translit {{ font-size: 0.8rem; color: {dim}; line-height: 1.75; font-style: italic; margin-bottom: 0.5rem; }}
+.dua-english {{ font-size: 0.88rem; color: {muted}; line-height: 1.75; font-style: italic; }}
 
-.ayah-number {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {gold}; letter-spacing: 0.15em; margin-bottom: 0.4rem; }}
-.ayah-arabic {{ font-size: 2.0rem; color: {text}; text-align: right; line-height: 2.2; font-weight: 300; direction: rtl; }}
-.ayah-translit {{ font-size: 0.8rem; color: {dim}; line-height: 1.7; font-weight: 300; margin-top: 0.5rem; font-style: italic; letter-spacing: 0.02em; }}
-.ayah-english {{ font-size: 0.85rem; color: {muted}; line-height: 1.7; font-weight: 300; margin-top: 0.4rem; font-style: italic; }}
-
-.dua-title {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {gold}; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 0.8rem; }}
-.dua-arabic {{ font-size: 1.8rem; color: {text}; text-align: right; line-height: 2.1; font-weight: 300; direction: rtl; margin-bottom: 0.6rem; }}
-.dua-translit {{ font-size: 0.8rem; color: {dim}; line-height: 1.7; font-style: italic; margin-bottom: 0.4rem; }}
-.dua-english {{ font-size: 0.85rem; color: {muted}; line-height: 1.7; font-style: italic; }}
-
-.streak-number {{ font-family: 'Inconsolata', monospace; font-size: 3.5rem; color: {gold}; font-weight: 300; line-height: 1; }}
-.streak-label {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim}; letter-spacing: 0.25em; text-transform: uppercase; margin-top: 0.4rem; }}
-
-.tracker-prayer-name {{ font-size: 1rem; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: #c8b89a; }}
-.tracker-status {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {very_dim}; letter-spacing: 0.15em; }}
+/* ═══ Tracker Component ═════════════════════════════════════════════════════ */
+.streak-number {{
+    font-family: 'Inconsolata', monospace; font-size: 3.5rem;
+    color: {gold}; font-weight: 200; line-height: 1;
+}}
+.streak-label {{
+    font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim};
+    letter-spacing: 0.28em; text-transform: uppercase; margin-top: 0.5rem;
+}}
+.tracker-prayer-name {{
+    font-size: 0.95rem; font-weight: 300; letter-spacing: 0.12em;
+    text-transform: uppercase; color: {text}; opacity: 0.85;
+}}
+.tracker-status {{
+    font-family: 'Inconsolata', monospace; font-size: 0.65rem;
+    color: {very_dim}; letter-spacing: 0.18em;
+}}
 .tracker-status.done {{ color: #4a8a4a; }}
-.today-progress {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.1em; text-align: center; margin-bottom: 1rem; }}
+.today-progress {{
+    font-family: 'Inconsolata', monospace; font-size: 0.72rem; color: {dim};
+    letter-spacing: 0.12em; text-align: center; margin-bottom: 1.25rem;
+}}
 
+/* ═══ Calendar ══════════════════════════════════════════════════════════════ */
+.cal-grid {{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 0.5rem; }}
+.cal-day {{
+    aspect-ratio: 1; border-radius: 6px; display: flex; align-items: center;
+    justify-content: center; font-family: 'Inconsolata', monospace; font-size: 0.6rem; color: {dim};
+}}
+.cal-empty {{ aspect-ratio: 1; }}
+.cal-0 {{ background: {card_bg}; border: 1px solid {border}; }}
+.cal-1 {{ background: #1a2a1a; }} .cal-2 {{ background: #1f3a1f; }}
+.cal-3 {{ background: #254d25; }} .cal-4 {{ background: #2a6a2a; }} .cal-5 {{ background: #2e8b2e; }}
+.cal-dow {{ font-family: 'Inconsolata', monospace; font-size: 0.55rem; color: {very_dim}; text-align: center; padding-bottom: 4px; }}
+.cal-month-label {{
+    font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim};
+    letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 0.5rem;
+}}
+
+/* ═══ Hadith Card ═══════════════════════════════════════════════════════════ */
 .hadith-card {{
-    border-left: 3px solid {gold};
-    background: {"rgba(28, 22, 12, 0.82)" if is_dark else "rgba(255, 252, 246, 0.92)"};
-    padding: 1.8rem 2rem 1.6rem 1.8rem;
-    margin-bottom: 0.5rem;
+    background: {"rgba(12,9,5,0.92)" if is_dark else "rgba(255,253,248,0.96)"};
+    border: 1px solid {"rgba(200,169,110,0.10)" if is_dark else "rgba(200,169,110,0.12)"};
+    border-left: 2px solid rgba(200,169,110,0.55);
+    border-radius: 0 {card_radius} {card_radius} 0;
+    box-shadow: {card_shadow};
+    padding: 2rem 2.2rem 1.8rem 2rem;
+    margin-bottom: 0.75rem;
     position: relative;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }}
 .hadith-label {{
-    font-family: 'Inconsolata', monospace;
-    font-size: 0.62rem;
-    color: {gold};
-    letter-spacing: 0.32em;
-    text-transform: uppercase;
-    margin-bottom: 1.1rem;
-    display: block;
+    font-family: 'Inconsolata', monospace; font-size: 0.58rem; color: {gold};
+    letter-spacing: 0.35em; text-transform: uppercase; margin-bottom: 1.25rem;
+    display: block; opacity: 0.72;
 }}
 .hadith-quote-mark {{
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size: 4.5rem;
-    color: {gold};
-    line-height: 0.6;
-    display: block;
-    margin-bottom: 0.6rem;
-    opacity: 0.65;
-    user-select: none;
+    font-family: Georgia, serif; font-size: 4rem; color: {gold};
+    line-height: 0.6; display: block; margin-bottom: 0.75rem;
+    opacity: 0.38; user-select: none;
 }}
 .hadith-text {{
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.15rem;
-    line-height: 1.9;
-    color: {"#d4c8b4" if is_dark else "#2a2018"};
-    font-weight: 300;
-    font-style: italic;
-    margin: 0;
+    font-family: 'Cormorant Garamond', serif; font-size: 1.18rem; line-height: 1.95;
+    color: {"#d8ccb8" if is_dark else "#2a2018"}; font-weight: 300; font-style: italic; margin: 0;
 }}
 .hadith-ref {{
-    font-family: 'Inconsolata', monospace;
-    font-size: 0.62rem;
-    color: {muted};
-    letter-spacing: 0.08em;
-    text-align: right;
-    margin-top: 1.2rem;
-    display: block;
-    opacity: 0.75;
+    font-family: 'Inconsolata', monospace; font-size: 0.6rem; color: {muted};
+    letter-spacing: 0.1em; text-align: right; margin-top: 1.35rem; display: block; opacity: 0.62;
 }}
-/* Hadith shuffle button — scoped via :has() on the marker div.
-   Streamlit renders st.markdown + st.columns as siblings inside
-   the same stVerticalBlock, so the sibling combinator ~ works. */
-div:has(> .hadith-shuffle-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button {{
-    background: transparent !important;
-    border: 1px solid rgba(200, 169, 110, 0.38) !important;
-    border-radius: 0 !important;
-    color: {gold} !important;
-    font-family: 'Inconsolata', monospace !important;
-    font-size: 0.6rem !important;
-    letter-spacing: 0.3em !important;
-    text-transform: uppercase !important;
-    padding: 0.5rem 1.4rem !important;
-    width: 100% !important;
-    min-height: 0 !important;
-    height: auto !important;
-    line-height: 1.5 !important;
-    transition: all 0.25s ease !important;
-    opacity: 0.82;
-}}
-div:has(> .hadith-shuffle-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button:hover {{
-    background: rgba(200, 169, 110, 0.08) !important;
-    border-color: {gold} !important;
-    opacity: 1 !important;
-}}
+
+/* ═══ Ramadan Banner ════════════════════════════════════════════════════════ */
 .ramadan-title {{ font-size: 1.4rem; font-weight: 300; letter-spacing: 0.15em; color: {ramadan_title_color}; margin-bottom: 0.2rem; }}
 .ramadan-arabic {{ font-size: 1.1rem; color: {ramadan_arabic_color}; margin-bottom: 0.8rem; direction: rtl; }}
 .ramadan-times {{ display: flex; justify-content: center; gap: 2.5rem; }}
@@ -575,115 +733,216 @@ div:has(> .hadith-shuffle-marker) ~ [data-testid="stHorizontalBlock"] div.stButt
 .ramadan-time-val {{ font-family: 'Inconsolata', monospace; font-size: 1.2rem; color: {ramadan_title_color}; font-weight: 300; }}
 .ramadan-time-val.next {{ color: {gold}; }}
 
-/* --- Calendar --- */
-.cal-grid {{ display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 0.5rem; }}
-.cal-day {{ aspect-ratio: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-family: 'Inconsolata', monospace; font-size: 0.6rem; color: {dim}; }}
-.cal-empty {{ aspect-ratio: 1; }}
-.cal-0 {{ background: {card_bg}; border: 1px solid {border}; }}
-.cal-1 {{ background: #1a2a1a; }}
-.cal-2 {{ background: #1f3a1f; }}
-.cal-3 {{ background: #254d25; }}
-.cal-4 {{ background: #2a6a2a; }}
-.cal-5 {{ background: #2e8b2e; }}
-.cal-dow {{ font-family: 'Inconsolata', monospace; font-size: 0.55rem; color: {very_dim}; text-align: center; padding-bottom: 4px; }}
-.cal-month-label {{ font-family: 'Inconsolata', monospace; font-size: 0.65rem; color: {dim}; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.5rem; }}
-
-#MainMenu, footer, header {{ visibility: hidden; }}
-.block-container {{ padding-top: 3rem; max-width: 680px; }}
-
-/* --- Pill Buttons --- */
+/* ═══ Default Streamlit Buttons — minimal transparent pill ═════════════════ */
 div.stButton > button {{
-    border-radius: 20px !important;
+    font-family: 'Inconsolata', monospace !important;
+    font-size: 0.64rem !important;
+    letter-spacing: 0.16em !important;
+    text-transform: uppercase !important;
+    border-radius: 24px !important;
     border: 1px solid {border} !important;
-    background: {card_bg} !important;
-    color: {text} !important;
-    padding: 0.2rem 1.2rem !important;
-    min-height: 0 !important;
-    height: auto !important;
+    background: transparent !important;
+    color: {dim} !important;
+    padding: 0.45rem 1.4rem !important;
+    min-height: 0 !important; height: auto !important;
     line-height: 1.6 !important;
-    transition: all 0.2s ease;
+    transition: all 0.22s ease !important;
 }}
 div.stButton > button:hover {{
-    border-color: {gold} !important;
+    border-color: rgba(200,169,110,0.5) !important;
     color: {gold} !important;
+    background: rgba(200,169,110,0.05) !important;
 }}
-/* ── Scholar Chat ────────────────────────────────────────────────────────── */
-.chat-user-wrap {{ display: flex; justify-content: flex-end; margin: 0.8rem 0; }}
-.chat-user-bubble {{
-    background: linear-gradient(135deg, rgba(200,169,110,0.18) 0%, rgba(200,169,110,0.09) 100%);
-    border: 1px solid rgba(200,169,110,0.3);
-    border-radius: 14px 14px 2px 14px;
-    padding: 0.8rem 1.1rem;
-    max-width: 76%;
-    color: {text};
-    font-size: 0.9rem;
-    line-height: 1.65;
+/* ── Scholar Chat — Premium ──────────────────────────────────────────────── */
+/* column-reverse: newest message is first in HTML → always at visual bottom.
+   scrollTop=0 (default) reveals the bottom. No JS scroll needed. */
+.sc-msgs {{
+    display: flex;
+    flex-direction: column-reverse;
+    height: 65vh;
+    min-height: 280px;
+    overflow-y: auto;
+    padding: 1.5rem 0.5rem 1rem;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
 }}
-.chat-asst-wrap {{ display: flex; justify-content: flex-start; margin: 0.8rem 0; }}
-.chat-asst-bubble {{
-    background: {card_bg};
-    border: 1px solid {border};
-    border-left: 2px solid rgba(200,169,110,0.45);
-    border-radius: 2px 14px 14px 14px;
-    padding: 1rem 1.25rem 0.9rem;
-    max-width: 90%;
-    color: {text};
-    font-size: 0.9rem;
-    line-height: 1.75;
+.sc-msgs::-webkit-scrollbar {{ width: 3px; }}
+.sc-msgs::-webkit-scrollbar-track {{ background: transparent; }}
+.sc-msgs::-webkit-scrollbar-thumb {{ background: {dim}; border-radius: 2px; opacity: 0.5; }}
+/* Empty / welcome state */
+.sc-empty {{
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 65vh; min-height: 280px; gap: 0.4rem; opacity: 0.45; pointer-events: none;
 }}
-.chat-asst-label {{
-    display: block;
-    font-family: 'Inconsolata', monospace;
-    font-size: 0.54rem;
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: {gold};
-    margin-bottom: 0.6rem;
-    opacity: 0.7;
+.sc-empty-icon {{ font-size: 2rem; margin-bottom: 0.35rem; }}
+.sc-empty-title {{
+    font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 400;
+    letter-spacing: 0.12em; color: {text}; margin: 0;
 }}
-.typing-cursor {{
-    display: inline-block;
-    color: {gold};
-    font-size: 0.85em;
-    vertical-align: middle;
-    margin-left: 2px;
-    animation: scholar-blink 0.9s step-end infinite;
+.sc-empty-sub {{
+    font-family: 'Inconsolata', monospace; font-size: 0.56rem;
+    letter-spacing: 0.22em; text-transform: uppercase; color: {dim}; margin: 0;
 }}
-@keyframes scholar-blink {{
-    0%, 100% {{ opacity: 1; }}
-    50% {{ opacity: 0; }}
+/* Message row wrappers */
+.sc-user-row {{
+    display: flex; justify-content: flex-end; margin: 0.65rem 0; padding: 0 0.25rem;
+    animation: sc-fadein 0.3s ease;
 }}
-.scholar-empty-hint {{
-    font-family: 'Inconsolata', monospace;
-    font-size: 0.62rem;
-    color: {dim};
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    text-align: center;
-    margin: 2.5rem 0 0.4rem;
-    opacity: 0.7;
+.sc-asst-row {{
+    display: flex; justify-content: flex-start; margin: 0.65rem 0; padding: 0 0.25rem;
+    animation: sc-fadein 0.3s ease;
 }}
-div:has(> .scholar-starters-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button {{
+/* Bubble + timestamp stacks */
+.sc-user-stack {{ display: flex; flex-direction: column; align-items: flex-end; max-width: 72%; }}
+.sc-asst-stack {{ display: flex; flex-direction: column; align-items: flex-start; max-width: 86%; }}
+/* User bubble */
+.sc-user-bbl {{
+    background: {sc_user_bg};
+    border-radius: 18px 18px 2px 18px;
+    padding: 0.72rem 1rem;
+    color: {text}; font-size: 0.9rem; line-height: 1.65;
+    box-shadow: {sc_user_shadow};
+}}
+/* Assistant bubble */
+.sc-asst-bbl {{
+    background: {sc_asst_bg};
+    border-left: 2px solid rgba(200,169,110,0.48);
+    border-radius: 2px 18px 18px 18px;
+    padding: 0.82rem 1.1rem 0.72rem;
+    color: {text}; font-size: 0.9rem; line-height: 1.75;
+}}
+.sc-asst-lbl {{
+    display: block; font-family: 'Inconsolata', monospace; font-size: 0.52rem;
+    letter-spacing: 0.26em; text-transform: uppercase;
+    color: {gold}; opacity: 0.65; margin-bottom: 0.5rem;
+}}
+/* Timestamps */
+.sc-ts {{
+    font-family: 'Inconsolata', monospace; font-size: 0.54rem;
+    color: {dim}; letter-spacing: 0.04em; margin-top: 0.28rem;
+    opacity: 0.6; padding: 0 0.15rem;
+}}
+/* Thinking animation */
+.sc-thinking-wrap {{ display: flex; align-items: center; gap: 5px; padding: 0.25rem 0; }}
+.sc-dot {{
+    width: 5px; height: 5px; border-radius: 50%; background: {gold}; opacity: 0.35;
+    animation: sc-dot-pulse 1.4s ease-in-out infinite;
+}}
+.sc-dot:nth-child(2) {{ animation-delay: 0.22s; }}
+.sc-dot:nth-child(3) {{ animation-delay: 0.44s; }}
+@keyframes sc-dot-pulse {{
+    0%, 60%, 100% {{ opacity: 0.25; transform: scale(0.8); }}
+    30%            {{ opacity: 1;    transform: scale(1.05); }}
+}}
+/* Streaming cursor */
+.sc-cursor {{
+    display: inline-block; color: {gold}; font-size: 0.85em;
+    vertical-align: middle; margin-left: 2px;
+    animation: sc-blink 0.85s step-end infinite;
+}}
+@keyframes sc-blink {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0; }} }}
+/* Message fade-in */
+@keyframes sc-fadein {{
+    from {{ opacity: 0; transform: translateY(5px); }}
+    to   {{ opacity: 1; transform: translateY(0); }}
+}}
+/* Starter chip label */
+.sc-chips-lbl {{
+    font-family: 'Inconsolata', monospace; font-size: 0.56rem;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: {dim}; text-align: center; margin: 0.5rem 0 0.2rem; opacity: 0.6;
+}}
+/* Starter chip buttons — pill style via :has() marker */
+div:has(> .sc-chips-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button {{
     background: transparent !important;
-    border: 1px solid rgba(200,169,110,0.28) !important;
-    border-radius: 0 !important;
+    border: 1px solid rgba(200,169,110,0.30) !important;
+    border-radius: 50px !important;
     color: {gold} !important;
     font-family: 'Inconsolata', monospace !important;
     font-size: 0.58rem !important;
     letter-spacing: 0.1em !important;
     text-transform: uppercase !important;
-    padding: 0.55rem 0.6rem !important;
+    padding: 0.4rem 0.85rem !important;
     width: 100% !important;
-    min-height: 2.8rem !important;
-    line-height: 1.45 !important;
-    transition: all 0.25s ease !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
-    text-align: center !important;
+    min-height: 0 !important;
+    line-height: 1.5 !important;
+    transition: all 0.2s ease !important;
+    white-space: nowrap !important;
     opacity: 0.82;
 }}
-div:has(> .scholar-starters-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button:hover {{
-    background: rgba(200,169,110,0.08) !important;
+div:has(> .sc-chips-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button:hover {{
+    background: rgba(200,169,110,0.09) !important;
+    border-color: {gold} !important;
+    opacity: 1 !important;
+}}
+/* Chat input — premium override */
+[data-testid="stChatInput"] {{
+    border-top: 1px solid {border} !important;
+    padding: 0.75rem 1rem 0.85rem !important;
+    background: {bg} !important;
+}}
+[data-testid="stChatInput"] > div,
+[data-testid="stChatInput"] > div > div {{
+    background-color: {sc_input_bg} !important;
+    border: 1px solid {border} !important;
+    border-radius: 26px !important;
+    padding: 0.12rem 0.25rem 0.12rem 1.1rem !important;
+    box-shadow: none !important;
+}}
+[data-testid="stChatInput"] > div > div {{
+    border: none !important;
+    padding: 0 !important;
+}}
+[data-testid="stChatInput"] textarea {{
+    color: {text} !important;
+    font-size: 0.88rem !important;
+    background-color: transparent !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0.55rem 0 !important;
+    line-height: 1.5 !important;
+    resize: none !important;
+    caret-color: {gold} !important;
+}}
+[data-testid="stChatInput"] textarea::placeholder {{
+    color: {dim} !important;
+    opacity: 0.55 !important;
+}}
+[data-testid="stChatInput"] button {{
+    background: {gold} !important;
+    border-radius: 50% !important;
+    border: none !important;
+    width: 34px !important;
+    height: 34px !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    flex-shrink: 0;
+    margin: 3px !important;
+    opacity: 1 !important;
+    transition: background 0.2s ease !important;
+}}
+[data-testid="stChatInput"] button:hover {{ background: #d4b87a !important; }}
+[data-testid="stChatInput"] button svg {{ fill: #111 !important; stroke: #111 !important; }}
+/* Stop button — scoped via marker, centered pill */
+div:has(> .sc-stop-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button {{
+    background: {card_bg} !important;
+    border: 1px solid {border} !important;
+    color: {text} !important;
+    border-radius: 20px !important;
+    padding: 0.45rem 1.6rem !important;
+    font-family: 'Inconsolata', monospace !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    transition: all 0.2s ease !important;
+    opacity: 0.85;
+}}
+div:has(> .sc-stop-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button:hover {{
+    background: rgba(200,169,110,0.07) !important;
     border-color: {gold} !important;
     opacity: 1 !important;
 }}
@@ -1163,22 +1422,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Shuffle button — centered below the card.
-# The marker div is a CSS hook: div:has(> .hadith-shuffle-marker) ~ [stHorizontalBlock]
-# lets us scope the gold button style without any JavaScript.
-st.markdown('<div class="hadith-shuffle-marker"></div>', unsafe_allow_html=True)
-_sh_l, _sh_c, _sh_r = st.columns([3, 4, 3])
-with _sh_c:
-    if st.button("↻  another hadith", key="hadith_shuffle"):
-        with st.spinner(""):
-            try:
-                _ht, _hr = get_hadith()
-                st.session_state["hadith_text"] = _ht
-                st.session_state["hadith_ref"]  = _hr
-            except Exception:
-                pass
-        st.rerun()
-
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -1293,9 +1536,6 @@ with tab1:
                     st.rerun()
             except Exception:
                 pass
-
-        from datetime import datetime
-        import pytz
 
         def to_min(hhmm: str) -> int:
             # handles "5:44 PM" or "17:44" depending on your timings format
@@ -1781,11 +2021,12 @@ with tab4:
         st.error(f"Could not load surah: {e}")
 
 # ════════════════════════════════════════════════════════════
-# TAB 5 — ISLAMIC SCHOLAR AI
+# TAB 5 — ISLAMIC SCHOLAR AI  (premium chat redesign)
 # ════════════════════════════════════════════════════════════
 with tab5:
-    import html as _html_mod
-    import re as _re_mod
+    import html    as _sc_html_mod
+    import re     as _sc_re_mod
+    import streamlit.components.v1 as _sc_comp
 
     _SCHOLAR_SYSTEM = (
         "You are a knowledgeable and compassionate Islamic scholar assistant. "
@@ -1799,113 +2040,197 @@ with tab5:
         "authentic sources. Never fabricate citations."
     )
 
-    _SCHOLAR_STARTERS = [
+    _SC_STARTERS = [
         "Explain Ayatul Kursi",
-        "I'm feeling anxious, what does Islam say?",
-        "What are the pillars of Islam?",
+        "I'm feeling anxious",
+        "What breaks a fast?",
+        "Best dua for stress",
     ]
 
-    def _scholar_html(role, content, streaming=False):
-        """Render a chat message as a styled HTML card."""
-        safe = _html_mod.escape(content)
-        # Basic markdown: **bold**, *italic*, `code`, newlines
-        safe = _re_mod.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', safe)
-        safe = _re_mod.sub(r'\*(.+?)\*', r'<em>\1</em>', safe)
-        safe = _re_mod.sub(
-            r'`(.+?)`',
-            r'<code style="font-family:Inconsolata,monospace;font-size:0.85em;'
-            r'background:rgba(200,169,110,0.12);padding:0.1em 0.35em;border-radius:3px;">\1</code>',
-            safe,
-        )
-        paras = safe.split('\n\n')
-        body = ''.join(
-            f'<p style="margin:0 0 0.55rem 0;">{p.replace(chr(10), "<br>")}</p>'
-            for p in paras if p.strip()
-        )
-        if not body:
-            body = '<p style="margin:0;"></p>'
+    # ── HTML helpers ──────────────────────────────────────────────────────────
 
-        if role == "user":
-            return (
-                f'<div class="chat-user-wrap">'
-                f'<div class="chat-user-bubble">{body}</div>'
+    def _sc_md(text):
+        """Convert basic markdown to safe HTML paragraphs."""
+        s = _sc_html_mod.escape(text)
+        s = _sc_re_mod.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', s, flags=_sc_re_mod.DOTALL)
+        s = _sc_re_mod.sub(r'\*(.+?)\*',     r'<em>\1</em>',         s)
+        s = _sc_re_mod.sub(
+            r'`([^`]+)`',
+            r'<code style="font-family:Inconsolata,monospace;font-size:0.83em;'
+            r'background:rgba(200,169,110,0.12);padding:0.1em 0.35em;border-radius:3px;">\1</code>',
+            s,
+        )
+        paras = s.split('\n\n')
+        return (
+            ''.join(
+                f'<p style="margin:0 0 0.5rem 0;">{p.replace(chr(10), "<br>")}</p>'
+                for p in paras if p.strip()
+            )
+            or '<p style="margin:0;"></p>'
+        )
+
+    def _sc_user_card(content, ts=""):
+        ts_html = f'<span class="sc-ts">{ts}</span>' if ts else ''
+        return (
+            f'<div class="sc-user-row">'
+            f'<div class="sc-user-stack">'
+            f'<div class="sc-user-bbl">{_sc_md(content)}</div>'
+            f'{ts_html}'
+            f'</div></div>'
+        )
+
+    def _sc_asst_card(content, ts="", streaming=False, thinking=False):
+        if thinking:
+            inner = (
+                f'<span class="sc-asst-lbl">✦ Scholar is thinking</span>'
+                f'<div class="sc-thinking-wrap">'
+                f'<div class="sc-dot"></div>'
+                f'<div class="sc-dot"></div>'
+                f'<div class="sc-dot"></div>'
                 f'</div>'
             )
         else:
-            cursor = '<span class="typing-cursor">▌</span>' if streaming else ''
-            return (
-                f'<div class="chat-asst-wrap">'
-                f'<div class="chat-asst-bubble">'
-                f'<span class="chat-asst-label">✦ Scholar</span>'
-                f'{body}{cursor}'
-                f'</div>'
-                f'</div>'
-            )
+            cursor = '<span class="sc-cursor">▌</span>' if streaming else ''
+            inner  = f'<span class="sc-asst-lbl">✦ Scholar</span>{_sc_md(content)}{cursor}'
+        ts_html = f'<span class="sc-ts">{ts}</span>' if ts else ''
+        return (
+            f'<div class="sc-asst-row">'
+            f'<div class="sc-asst-stack">'
+            f'<div class="sc-asst-bbl">{inner}</div>'
+            f'{ts_html}'
+            f'</div></div>'
+        )
 
-    # Init conversation history
+    def _sc_empty():
+        return (
+            '<div class="sc-empty">'
+            '<div class="sc-empty-icon">☪</div>'
+            '<p class="sc-empty-title">Islamic Scholar</p>'
+            '<p class="sc-empty-sub">Powered by Claude · Grounded in authentic sources</p>'
+            '</div>'
+        )
+
+    def _sc_render(msgs, streaming_content=None, is_thinking=False):
+        """
+        Build the full chat pane HTML.
+        Uses CSS column-reverse: messages rendered newest-first in HTML so
+        the visual bottom is always newest. scrollTop=0 = bottom. No JS scroll needed.
+        """
+        if not msgs and streaming_content is None and not is_thinking:
+            return _sc_empty()
+
+        parts = []
+        # Visual bottom: live/thinking indicator goes first (HTML) = bottom (visual)
+        if is_thinking:
+            parts.append(_sc_asst_card("", thinking=True))
+        elif streaming_content is not None:
+            parts.append(_sc_asst_card(streaming_content, streaming=True))
+
+        # Real messages, newest first (column-reverse shows them just above live area)
+        for m in reversed(msgs):
+            if m["role"] == "user":
+                parts.append(_sc_user_card(m["content"], m.get("time", "")))
+            else:
+                parts.append(_sc_asst_card(m["content"], ts=m.get("time", "")))
+
+        return f'<div class="sc-msgs">{"".join(parts)}</div>'
+
+    def _sc_scroll_bottom():
+        """
+        Scroll the message pane to top (= visual bottom in column-reverse).
+        Called once on send + once on complete to handle preserved scroll state.
+        """
+        _sc_comp.html(
+            """<script>
+            setTimeout(function () {
+                var el = window.parent.document.querySelector('.sc-msgs');
+                if (el) el.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 80);
+            </script>""",
+            height=0, width=0,
+        )
+
+    # ── state & initial render ────────────────────────────────────────────────
+
     if "scholar_messages" not in st.session_state:
         st.session_state["scholar_messages"] = []
-    _msgs = st.session_state["scholar_messages"]
+    _sc_msgs = st.session_state["scholar_messages"]
 
-    # Render existing conversation
-    for _m in _msgs:
-        st.markdown(_scholar_html(_m["role"], _m["content"]), unsafe_allow_html=True)
+    # Single st.empty() for the whole chat area — zero layout reflow on updates
+    _sc_area = st.empty()
+    _sc_area.markdown(_sc_render(_sc_msgs), unsafe_allow_html=True)
 
-    # Empty state — intro hint + starter questions
-    if not _msgs:
-        st.markdown(
-            '<p class="scholar-empty-hint">Ask a question or choose one below</p>',
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="scholar-starters-marker"></div>', unsafe_allow_html=True)
-        _sc1, _sc2, _sc3 = st.columns(3)
-        for _sci, (_sc_col, _s_text) in enumerate(zip([_sc1, _sc2, _sc3], _SCHOLAR_STARTERS)):
-            with _sc_col:
-                if st.button(_s_text, key=f"scholar_starter_{_sci}"):
-                    st.session_state["scholar_pending"] = _s_text
+    # ── starter chips (only when conversation is empty) ───────────────────────
+
+    if not _sc_msgs:
+        st.markdown('<p class="sc-chips-lbl">Suggested questions</p>', unsafe_allow_html=True)
+        st.markdown('<div class="sc-chips-marker"></div>', unsafe_allow_html=True)
+        _sca, _scb = st.columns(2)
+        _scc, _scd = st.columns(2)
+        for _sci, (_sccol, _sctxt) in enumerate(
+            zip([_sca, _scb, _scc, _scd], _SC_STARTERS)
+        ):
+            with _sccol:
+                if st.button(_sctxt, key=f"sc_chip_{_sci}"):
+                    st.session_state["scholar_pending"] = _sctxt
                     st.rerun()
 
-    # Collect input — from chat box or a clicked starter
-    _pending = st.session_state.pop("scholar_pending", None)
-    _typed   = st.chat_input("Ask anything about Islam…", key="scholar_chat_input")
-    _prompt  = _typed or _pending
+    # ── input ─────────────────────────────────────────────────────────────────
 
-    if _prompt:
-        _msgs.append({"role": "user", "content": _prompt})
-        st.markdown(_scholar_html("user", _prompt), unsafe_allow_html=True)
+    _sc_pending = st.session_state.pop("scholar_pending", None)
 
-        _api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not _api_key:
-            st.error("ANTHROPIC_API_KEY is not set. Add it to your .env file.")
-        else:
-            try:
-                import anthropic as _anthropic
-                _client = _anthropic.Anthropic(api_key=_api_key)
+    # Rate limit: count user turns only
+    _sc_user_turns = sum(1 for m in _sc_msgs if m["role"] == "user")
+    _SC_MAX_TURNS  = 20
+    if _sc_user_turns >= _SC_MAX_TURNS:
+        st.markdown(
+            f'<p style="font-family:Inconsolata,monospace;font-size:0.65rem;'
+            f'color:{dim};letter-spacing:0.18em;text-transform:uppercase;'
+            f'text-align:center;margin-top:0.75rem;opacity:0.65;">'
+            f'Session limit reached ({_SC_MAX_TURNS} questions). Refresh to start a new session.</p>',
+            unsafe_allow_html=True,
+        )
+    else:
+        _sc_typed  = st.chat_input("Ask anything about Islam…", key="scholar_chat_input")
+        _sc_prompt = _sc_typed or _sc_pending
 
-                # Build messages list (exclude system from history — passed separately)
-                _api_msgs = [{"role": m["role"], "content": m["content"]} for m in _msgs]
+        if _sc_prompt:
+            _sc_t = datetime.now().strftime("%H:%M")
+            _sc_msgs.append({"role": "user", "content": _sc_prompt, "time": _sc_t})
 
-                _placeholder = st.empty()
-                _full = ""
-                with _client.messages.stream(
-                    model="claude-sonnet-4-20250514",
-                    max_tokens=1500,
-                    system=_SCHOLAR_SYSTEM,
-                    messages=_api_msgs,
-                ) as _stream:
-                    for _chunk in _stream.text_stream:
-                        _full += _chunk
-                        _placeholder.markdown(
-                            _scholar_html("assistant", _full, streaming=True),
-                            unsafe_allow_html=True,
-                        )
+            # Show user message + thinking dots immediately
+            _sc_area.markdown(_sc_render(_sc_msgs, is_thinking=True), unsafe_allow_html=True)
+            _sc_scroll_bottom()
 
-                # Finalize — remove blinking cursor
-                _placeholder.markdown(
-                    _scholar_html("assistant", _full, streaming=False),
-                    unsafe_allow_html=True,
-                )
-                _msgs.append({"role": "assistant", "content": _full})
+            _sc_api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not _sc_api_key:
+                st.error("ANTHROPIC_API_KEY is not set. Add it to your .env file.")
+            else:
+                try:
+                    import anthropic as _anthropic
+                    _sc_client   = _anthropic.Anthropic(api_key=_sc_api_key)
+                    _sc_api_msgs = [
+                        {"role": m["role"], "content": m["content"]} for m in _sc_msgs
+                    ]
+                    _sc_full = ""
+                    with _sc_client.messages.stream(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=1500,
+                        system=_SCHOLAR_SYSTEM,
+                        messages=_sc_api_msgs,
+                    ) as _sc_stream:
+                        for _sc_chunk in _sc_stream.text_stream:
+                            _sc_full += _sc_chunk
+                            _sc_area.markdown(
+                                _sc_render(_sc_msgs, streaming_content=_sc_full),
+                                unsafe_allow_html=True,
+                            )
 
-            except Exception as _scholar_err:
-                st.error(f"Could not reach the Scholar: {_scholar_err}")
+                    # Finalize: save to history, remove streaming cursor
+                    _sc_t2 = datetime.now().strftime("%H:%M")
+                    _sc_msgs.append({"role": "assistant", "content": _sc_full, "time": _sc_t2})
+                    _sc_area.markdown(_sc_render(_sc_msgs), unsafe_allow_html=True)
+                    _sc_scroll_bottom()
+
+                except Exception as _sc_err:
+                    st.error(f"Could not reach the Scholar: {_sc_err}")
