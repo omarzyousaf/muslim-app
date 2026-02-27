@@ -1,5 +1,7 @@
 import streamlit as st
 import requests
+import time
+import random as _random_module
 from datetime import datetime, date, timedelta
 import math
 import pytz
@@ -14,6 +16,15 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="Salah", page_icon="🕌", layout="centered")
+# ✅ Ensure timezone is populated immediately so background gradient renders on first load
+if "cached_timezone" not in st.session_state or st.session_state["cached_timezone"] in (None, "", "UTC"):
+    try:
+        city, country, lat, lon, timezone_str = get_location_from_ip()
+        st.session_state["cached_timezone"] = timezone_str
+        st.rerun()
+    except Exception:
+        st.session_state["cached_timezone"] = "America/New_York"
+
 
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -37,29 +48,187 @@ ramadan_title_color  = "#e8a05a" if is_dark else "#7a3010"
 ramadan_arabic_color = "#c8692e" if is_dark else "#a04820"
 ramadan_bg = "linear-gradient(135deg, #1a0d0a 0%, #2a1505 100%)" if is_dark else "linear-gradient(135deg, #fdf6ed 0%, #faecd8 100%)"
 
-_cached_tz = st.session_state.get("cached_timezone", "UTC")
+_cached_tz = st.session_state.get("cached_timezone", "America/New_York") or "America/New_York"
 try:
     _tz = pytz.timezone(_cached_tz)
     _local_now = datetime.now(_tz)
 except Exception:
     _local_now = datetime.now()
 _h = _local_now.hour
-if is_dark:
-    if   4 <= _h <  6: _bg_gradient = "linear-gradient(170deg, #0d0820 0%, #1e103a 60%, #2d1a4a 100%)"
-    elif 6 <= _h <  8: _bg_gradient = "linear-gradient(170deg, #0d0810 0%, #2a1008 50%, #5a2e0a 100%)"
-    elif 8 <= _h < 12: _bg_gradient = "linear-gradient(170deg, #040c18 0%, #071828 60%, #0a2035 100%)"
-    elif 12 <= _h < 15: _bg_gradient = "linear-gradient(170deg, #04080f 0%, #06101e 50%, #0a1830 100%)"
-    elif 15 <= _h < 17: _bg_gradient = "linear-gradient(170deg, #06050f 0%, #180f28 50%, #2a1a08 100%)"
-    elif 17 <= _h < 20: _bg_gradient = "linear-gradient(170deg, #08030a 0%, #280a10 30%, #3a1208 60%, #1a0808 100%)"
-    else:               _bg_gradient = "linear-gradient(170deg, #020205 0%, #06060f 60%, #0a0a18 100%)"
+
+# Time-of-day phase (used for dawn/sunset nuance on clear skies)
+if 4 <= _h < 7:
+    phase = "dawn"
+elif 7 <= _h < 16:
+    phase = "day"
+elif 16 <= _h < 19:
+    phase = "sunset"
 else:
-    if   4 <= _h <  6: _bg_gradient = "linear-gradient(170deg, #e0d8f0 0%, #f0e8f8 100%)"
-    elif 6 <= _h <  8: _bg_gradient = "linear-gradient(170deg, #fef0d8 0%, #fde0c0 50%, #fac8a0 100%)"
-    elif 8 <= _h < 12: _bg_gradient = "linear-gradient(170deg, #e8f0fc 0%, #d8e8f8 100%)"
-    elif 12 <= _h < 15: _bg_gradient = "linear-gradient(170deg, #e0eaf8 0%, #cce0f4 100%)"
-    elif 15 <= _h < 17: _bg_gradient = "linear-gradient(170deg, #fef4e0 0%, #fde8c8 100%)"
-    elif 17 <= _h < 20: _bg_gradient = "linear-gradient(170deg, #fde8d8 0%, #f8d0c0 40%, #f0c0d0 100%)"
-    else:               _bg_gradient = "linear-gradient(170deg, #e8e4f4 0%, #d8d0ec 100%)"
+    phase = "night"
+
+# ── Weather-reactive background ──────────────────────────────────────────────
+_wcache  = st.session_state.get("cached_weather", {})
+_wcode   = int(_wcache.get("weathercode", 0))
+_wis_day = int(_wcache.get("is_day", 1 if phase in ("dawn", "day") else 0))
+
+# WMO code → condition label
+if _wcode == 0:
+    _wcond = "clear"
+elif _wcode in (1, 2, 3):
+    _wcond = "cloudy"
+elif _wcode in (45, 48):
+    _wcond = "fog"
+elif _wcode in (51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82):
+    _wcond = "rain"
+elif _wcode in (71, 73, 75, 77):
+    _wcond = "snow"
+elif _wcode in (95, 96, 99):
+    _wcond = "thunderstorm"
+else:
+    _wcond = "cloudy"
+
+# Gradient: weather condition × day/night × dark/light theme
+if _wcond == "clear":
+    if _wis_day:
+        if phase == "dawn":
+            _bg_gradient = ("linear-gradient(180deg, #1a0838 0%, #7b3460 32%, #e8835a 68%, #f5c07a 100%)"
+                            if is_dark else
+                            "linear-gradient(180deg, #d4bae8 0%, #f0c8a0 50%, #fae0b8 100%)")
+        elif phase == "sunset":
+            _bg_gradient = ("linear-gradient(180deg, #0a0420 0%, #3d0e55 25%, #8a1e5e 55%, #de5818 82%, #f08838 100%)"
+                            if is_dark else
+                            "linear-gradient(180deg, #e0a0c8 0%, #f0b870 45%, #fad090 100%)")
+        else:
+            _bg_gradient = ("linear-gradient(180deg, #0a4fa0 0%, #1878d0 40%, #35a0e8 72%, #78cdf0 100%)"
+                            if is_dark else
+                            "linear-gradient(180deg, #c8dff8 0%, #d8eafe 50%, #eaf5ff 100%)")
+    else:
+        _bg_gradient = ("linear-gradient(180deg, #020408 0%, #050a1a 30%, #080f30 62%, #0c1438 100%)"
+                        if is_dark else
+                        "linear-gradient(180deg, #1a1e38 0%, #242848 50%, #2c3258 100%)")
+elif _wcond == "cloudy":
+    if _wis_day:
+        _bg_gradient = ("linear-gradient(180deg, #3a5060 0%, #5a7585 38%, #7a9aa8 70%, #a8c0ca 100%)"
+                        if is_dark else
+                        "linear-gradient(180deg, #b8cad4 0%, #ccdae0 50%, #dde8ec 100%)")
+    else:
+        _bg_gradient = ("linear-gradient(180deg, #080c10 0%, #121a20 40%, #1a2430 72%, #20293a 100%)"
+                        if is_dark else
+                        "linear-gradient(180deg, #28303a 0%, #323c48 50%, #3a4452 100%)")
+elif _wcond == "fog":
+    if _wis_day:
+        _bg_gradient = ("linear-gradient(180deg, #909aa5 0%, #b0b8c2 40%, #c8d0d8 72%, #dde4ea 100%)"
+                        if is_dark else
+                        "linear-gradient(180deg, #c8cfd5 0%, #d8dfe5 50%, #e8eef2 100%)")
+    else:
+        _bg_gradient = ("linear-gradient(180deg, #181c20 0%, #22282e 50%, #2a3038 100%)"
+                        if is_dark else
+                        "linear-gradient(180deg, #303840 0%, #3a4248 50%, #424a52 100%)")
+elif _wcond == "rain":
+    if _wis_day:
+        _bg_gradient = ("linear-gradient(180deg, #182535 0%, #253848 40%, #324e62 70%, #405a70 100%)"
+                        if is_dark else
+                        "linear-gradient(180deg, #8090a0 0%, #9aacba 50%, #b0c0cc 100%)")
+    else:
+        _bg_gradient = ("linear-gradient(180deg, #04080e 0%, #080e18 40%, #0c1420 72%, #101828 100%)"
+                        if is_dark else
+                        "linear-gradient(180deg, #1c2430 0%, #242c3a 50%, #2c3442 100%)")
+elif _wcond == "snow":
+    if _wis_day:
+        _bg_gradient = ("linear-gradient(180deg, #7a8a98 0%, #98a8b5 40%, #bac8d2 70%, #d5e0e8 100%)"
+                        if is_dark else
+                        "linear-gradient(180deg, #c8d4dc 0%, #d8e2e8 50%, #e8eef2 100%)")
+    else:
+        _bg_gradient = ("linear-gradient(180deg, #060c18 0%, #0c1425 40%, #121c30 72%, #182040 100%)"
+                        if is_dark else
+                        "linear-gradient(180deg, #1e2840 0%, #28324a 50%, #303a52 100%)")
+elif _wcond == "thunderstorm":
+    _bg_gradient = ("linear-gradient(180deg, #040208 0%, #0c0815 32%, #150e20 65%, #18102a 100%)"
+                    if is_dark else
+                    "linear-gradient(180deg, #1a1828 0%, #222030 50%, #2a2838 100%)")
+else:
+    _bg_gradient = ("linear-gradient(180deg, #122b59 0%, #1f4e8a 50%, #4784ba 100%)"
+                    if is_dark else
+                    "linear-gradient(180deg, #c8dff8 0%, #d8eafe 50%, #eaf5ff 100%)")
+
+# ── Build weather particle overlay HTML (seeded RNG → stable positions) ──────
+_prng = _random_module.Random(12345)
+_overlay_html = '<div class="weather-overlay">'
+
+if _wcond == "clear" and _wis_day:
+    _overlay_html += '<div class="wx-sun"></div>'
+    for _ct, _cw, _ch, _cc, _cd, _cdl in [
+        ("8%",  "300px", "72px", "rgba(255,255,255,0.10)", "90s",  "-18s"),
+        ("22%", "220px", "55px", "rgba(255,255,255,0.07)", "122s", "-55s"),
+        ("14%", "165px", "42px", "rgba(255,255,255,0.06)", "108s", "-82s"),
+    ]:
+        _overlay_html += (f'<div class="wx-cloud" style="top:{_ct};width:{_cw};height:{_ch};'
+                          f'background:{_cc};animation-duration:{_cd};animation-delay:{_cdl};left:-30%;"></div>')
+
+elif _wcond == "clear" and not _wis_day:
+    for _ in range(110):
+        _sx  = _prng.randint(0, 100)
+        _sy  = _prng.randint(0, 72)
+        _ssz = round(_prng.uniform(1.0, 2.8), 1)
+        _sop = round(_prng.uniform(0.35, 0.95), 2)
+        _sdl = round(_prng.uniform(0, 8), 1)
+        _sdr = round(_prng.uniform(2.5, 6.5), 1)
+        _overlay_html += (f'<div class="wx-star" style="left:{_sx}%;top:{_sy}%;'
+                          f'width:{_ssz}px;height:{_ssz}px;'
+                          f'--star-op:{_sop};animation-delay:{_sdl}s;animation-duration:{_sdr}s;"></div>')
+
+elif _wcond == "cloudy":
+    _cop = "0.14" if _wis_day else "0.07"
+    _cc  = f"rgba(200,210,220,{_cop})" if _wis_day else f"rgba(55,65,75,{_cop})"
+    for _ct, _cw, _ch, _cd, _cdl in [
+        ("5%",  "400px", "95px", "95s",  "-12s"),
+        ("26%", "280px", "68px", "138s", "-50s"),
+        ("16%", "210px", "58px", "116s", "-78s"),
+        ("38%", "170px", "48px", "128s", "-35s"),
+    ]:
+        _overlay_html += (f'<div class="wx-cloud" style="top:{_ct};width:{_cw};height:{_ch};'
+                          f'background:{_cc};animation-duration:{_cd};animation-delay:{_cdl};left:-42%;"></div>')
+
+elif _wcond == "fog":
+    for _ft, _fh, _fd, _fdl in [
+        ("18%", "95px",  "7s",  "0s"),
+        ("36%", "72px",  "10s", "1.5s"),
+        ("52%", "82px",  "8s",  "3.2s"),
+        ("66%", "65px",  "12s", "0.8s"),
+        ("78%", "78px",  "9s",  "5s"),
+        ("8%",  "58px",  "6s",  "2.5s"),
+        ("44%", "60px",  "11s", "4s"),
+    ]:
+        _overlay_html += f'<div class="wx-mist" style="top:{_ft};height:{_fh};animation-duration:{_fd};animation-delay:{_fdl};"></div>'
+
+elif _wcond in ("rain", "thunderstorm"):
+    for _ in range(85):
+        _rx  = _prng.randint(-5, 105)
+        _rdl = round(_prng.uniform(0, 2.5), 2)
+        _rdr = round(_prng.uniform(0.45, 1.0), 2)
+        _rh  = _prng.randint(55, 100)
+        _rop = round(_prng.uniform(0.25, 0.60), 2)
+        _overlay_html += (f'<div class="wx-rain" style="left:{_rx}%;'
+                          f'animation-delay:{_rdl}s;animation-duration:{_rdr}s;'
+                          f'height:{_rh}px;opacity:{_rop};"></div>')
+    if _wcond == "thunderstorm":
+        _overlay_html += '<div class="wx-lightning" style="--lt-dur:9s;--lt-delay:0s;"></div>'
+        _overlay_html += '<div class="wx-lightning" style="--lt-dur:13s;--lt-delay:4.7s;"></div>'
+        _overlay_html += '<div class="wx-lightning" style="--lt-dur:7s;--lt-delay:2.1s;"></div>'
+
+elif _wcond == "snow":
+    for _ in range(70):
+        _fnx  = _prng.randint(0, 100)
+        _fnsz = round(_prng.uniform(3, 9), 1)
+        _fndl = round(_prng.uniform(0, 12), 1)
+        _fndr = round(_prng.uniform(5, 14), 1)
+        _fndf = _prng.randint(-70, 70)
+        _overlay_html += (f'<div class="wx-snow" style="left:{_fnx}%;'
+                          f'width:{_fnsz}px;height:{_fnsz}px;'
+                          f'animation-delay:{_fndl}s;animation-duration:{_fndr}s;'
+                          f'--snow-drift:{_fndf}px;"></div>')
+
+_overlay_html += '</div>'
 
 st.markdown(f"""
 <style>
@@ -71,9 +240,178 @@ st.markdown(f"""
     to {{ opacity: 1; transform: translateY(0); }}
 }}
 html, body, [class*="css"] {{ font-family: 'Cormorant Garamond', serif; color: {text}; }}
-[class*="css"] {{ background-color: {bg}; }}
-html, body {{ background: {_bg_gradient}; background-attachment: fixed; }}
-.stApp {{ background: {_bg_gradient} !important; background-attachment: fixed; min-height: 100vh; }}
+html, body {{
+    background: {_bg_gradient} !important;
+    background-attachment: fixed;
+    min-height: 100vh;
+}}
+
+.stApp {{
+    background: transparent !important;
+}}
+
+
+/* ══════════════════════════════════════════════════════
+   WEATHER PARTICLE OVERLAY
+   ══════════════════════════════════════════════════════ */
+.weather-overlay {{
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 1;
+    overflow: hidden;
+}}
+
+/* ── Keyframes ───────────────────────────────────────── */
+@keyframes sun-glow {{
+    0%, 100% {{
+        box-shadow: 0 0 70px 25px rgba(255,218,68,0.38),
+                    0 0 160px 65px rgba(255,175,20,0.18),
+                    0 0 320px 130px rgba(255,140,0,0.08);
+    }}
+    50% {{
+        box-shadow: 0 0 100px 42px rgba(255,218,68,0.58),
+                    0 0 240px 100px rgba(255,175,20,0.28),
+                    0 0 480px 200px rgba(255,140,0,0.13);
+    }}
+}}
+
+@keyframes wx-twinkle {{
+    0%, 100% {{ opacity: var(--star-op, 0.7); transform: scale(1); }}
+    45%       {{ opacity: calc(var(--star-op, 0.7) * 0.10); transform: scale(0.6); }}
+}}
+
+@keyframes wx-rain-fall {{
+    0%   {{ transform: translateY(-150px); opacity: 0; }}
+    6%   {{ opacity: 1; }}
+    90%  {{ opacity: 1; }}
+    100% {{ transform: translateY(110vh); opacity: 0; }}
+}}
+
+@keyframes wx-snow-fall {{
+    0%   {{ transform: translateY(-20px) translateX(0px) rotate(0deg); opacity: 0.9; }}
+    100% {{ transform: translateY(110vh) translateX(var(--snow-drift,40px)) rotate(600deg); opacity: 0.2; }}
+}}
+
+@keyframes wx-lightning {{
+    0%, 86%, 100% {{ opacity: 0; }}
+    87%  {{ opacity: 0.85; }}
+    88%  {{ opacity: 0; }}
+    89%  {{ opacity: 0.60; }}
+    90%  {{ opacity: 0; }}
+    91%  {{ opacity: 0.32; }}
+    92%  {{ opacity: 0; }}
+}}
+
+@keyframes wx-mist {{
+    0%   {{ transform: translateX(-14%) scaleY(1.00); opacity: 0.28; }}
+    50%  {{ transform: translateX( 14%) scaleY(1.35); opacity: 0.55; }}
+    100% {{ transform: translateX(-14%) scaleY(1.00); opacity: 0.28; }}
+}}
+
+@keyframes wx-cloud-drift {{
+    from {{ transform: translateX(0); }}
+    to   {{ transform: translateX(135vw); }}
+}}
+
+/* ── Sun ─────────────────────────────────────────────── */
+.wx-sun {{
+    position: absolute;
+    width: 115px; height: 115px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 42% 42%,
+        #fffde0 0%, #ffe566 28%, #ffb830 62%, rgba(255,140,0,0) 100%);
+    top: 7%; right: 12%;
+    animation: sun-glow 5s ease-in-out infinite;
+}}
+
+/* ── Stars ───────────────────────────────────────────── */
+.wx-star {{
+    position: absolute;
+    border-radius: 50%;
+    background: #ffffff;
+    animation: wx-twinkle var(--star-dur, 3s) ease-in-out infinite;
+    animation-delay: var(--star-delay, 0s);
+    opacity: var(--star-op, 0.7);
+}}
+
+/* ── Rain streaks ────────────────────────────────────── */
+.wx-rain {{
+    position: absolute;
+    top: -150px;
+    width: 1px;
+    height: 80px;
+    background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        rgba(180, 210, 245, 0.55) 42%,
+        rgba(200, 228, 255, 0.75) 70%,
+        transparent 100%
+    );
+    border-radius: 1px;
+    animation: wx-rain-fall linear infinite;
+    transform: rotate(12deg);
+    transform-origin: top center;
+}}
+
+/* ── Snowflakes ──────────────────────────────────────── */
+.wx-snow {{
+    position: absolute;
+    top: -15px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.88);
+    animation: wx-snow-fall ease-in infinite;
+    filter: blur(0.4px);
+}}
+
+/* ── Lightning flash ─────────────────────────────────── */
+.wx-lightning {{
+    position: absolute;
+    inset: 0;
+    background: rgba(195, 210, 255, 0.88);
+    animation: wx-lightning var(--lt-dur, 9s) ease-in-out var(--lt-delay, 0s) infinite;
+    opacity: 0;
+}}
+
+/* ── Mist layers ─────────────────────────────────────── */
+.wx-mist {{
+    position: absolute;
+    left: -22%; width: 144%;
+    border-radius: 55%;
+    filter: blur(22px);
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(225, 235, 248, 0.42),
+        rgba(215, 228, 245, 0.65),
+        rgba(225, 235, 248, 0.42),
+        transparent
+    );
+    animation: wx-mist ease-in-out infinite;
+}}
+
+/* ── CSS clouds ──────────────────────────────────────── */
+.wx-cloud {{
+    position: absolute;
+    border-radius: 55px;
+    filter: blur(8px);
+    animation: wx-cloud-drift linear infinite;
+}}
+.wx-cloud::before,
+.wx-cloud::after {{
+    content: '';
+    position: absolute;
+    background: inherit;
+    border-radius: 50%;
+}}
+.wx-cloud::before {{ width: 58%; height: 155%; top: -42%; left: 16%; }}
+.wx-cloud::after  {{ width: 38%; height: 125%; top: -32%; right: 16%; }}
+
+/* App content sits above weather overlay */
+.block-container {{
+    position: relative;
+    z-index: 2;
+}}
 
 /* --- Tabs --- */
 .stTabs [data-baseweb="tab-list"] {{ background-color: {bg}; border-bottom: 1px solid {border}; gap: 0; }}
@@ -85,6 +423,9 @@ html, body {{ background: {_bg_gradient}; background-attachment: fixed; }}
 .main-title {{ font-size: 3.2rem; font-weight: 300; letter-spacing: 0.2em; text-transform: uppercase; color: {text}; margin-bottom: 0; line-height: 1; }}
 .arabic-sub {{ font-size: 1.6rem; color: {muted}; letter-spacing: 0.05em; margin-top: 0.2rem; font-weight: 300; }}
 .date-line {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 0.5rem; }}
+.clock-wrap {{ display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-start; padding-top: 0.1rem; }}
+.clock-time {{ font-family: 'Inconsolata', monospace; font-size: 2.8rem; font-weight: 200; letter-spacing: 0.04em; color: {text}; line-height: 1; margin: 0; }}
+.clock-loc  {{ font-family: 'Inconsolata', monospace; font-size: 0.58rem; color: {dim}; letter-spacing: 0.22em; text-transform: uppercase; margin-top: 0.45rem; }}
 .divider {{ border: none; border-top: 1px solid {border}; margin: 2rem 0; }}
 .section-label {{ font-family: 'Inconsolata', monospace; font-size: 0.7rem; color: {dim}; letter-spacing: 0.25em; text-transform: uppercase; margin-bottom: 1rem; margin-top: 2rem; }}
 .hijri-date {{ font-size: 1rem; color: {muted}; font-weight: 300; letter-spacing: 0.05em; }}
@@ -156,6 +497,76 @@ html, body {{ background: {_bg_gradient}; background-attachment: fixed; }}
 .tracker-status.done {{ color: #4a8a4a; }}
 .today-progress {{ font-family: 'Inconsolata', monospace; font-size: 0.75rem; color: {dim}; letter-spacing: 0.1em; text-align: center; margin-bottom: 1rem; }}
 
+.hadith-card {{
+    border-left: 3px solid {gold};
+    background: {"rgba(28, 22, 12, 0.82)" if is_dark else "rgba(255, 252, 246, 0.92)"};
+    padding: 1.8rem 2rem 1.6rem 1.8rem;
+    margin-bottom: 0.5rem;
+    position: relative;
+}}
+.hadith-label {{
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.62rem;
+    color: {gold};
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    margin-bottom: 1.1rem;
+    display: block;
+}}
+.hadith-quote-mark {{
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 4.5rem;
+    color: {gold};
+    line-height: 0.6;
+    display: block;
+    margin-bottom: 0.6rem;
+    opacity: 0.65;
+    user-select: none;
+}}
+.hadith-text {{
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.15rem;
+    line-height: 1.9;
+    color: {"#d4c8b4" if is_dark else "#2a2018"};
+    font-weight: 300;
+    font-style: italic;
+    margin: 0;
+}}
+.hadith-ref {{
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.62rem;
+    color: {muted};
+    letter-spacing: 0.08em;
+    text-align: right;
+    margin-top: 1.2rem;
+    display: block;
+    opacity: 0.75;
+}}
+/* Hadith shuffle button — scoped via :has() on the marker div.
+   Streamlit renders st.markdown + st.columns as siblings inside
+   the same stVerticalBlock, so the sibling combinator ~ works. */
+div:has(> .hadith-shuffle-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button {{
+    background: transparent !important;
+    border: 1px solid rgba(200, 169, 110, 0.38) !important;
+    border-radius: 0 !important;
+    color: {gold} !important;
+    font-family: 'Inconsolata', monospace !important;
+    font-size: 0.6rem !important;
+    letter-spacing: 0.3em !important;
+    text-transform: uppercase !important;
+    padding: 0.5rem 1.4rem !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    line-height: 1.5 !important;
+    transition: all 0.25s ease !important;
+    opacity: 0.82;
+}}
+div:has(> .hadith-shuffle-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button:hover {{
+    background: rgba(200, 169, 110, 0.08) !important;
+    border-color: {gold} !important;
+    opacity: 1 !important;
+}}
 .ramadan-title {{ font-size: 1.4rem; font-weight: 300; letter-spacing: 0.15em; color: {ramadan_title_color}; margin-bottom: 0.2rem; }}
 .ramadan-arabic {{ font-size: 1.1rem; color: {ramadan_arabic_color}; margin-bottom: 0.8rem; direction: rtl; }}
 .ramadan-times {{ display: flex; justify-content: center; gap: 2.5rem; }}
@@ -195,6 +606,86 @@ div.stButton > button {{
 div.stButton > button:hover {{
     border-color: {gold} !important;
     color: {gold} !important;
+}}
+/* ── Scholar Chat ────────────────────────────────────────────────────────── */
+.chat-user-wrap {{ display: flex; justify-content: flex-end; margin: 0.8rem 0; }}
+.chat-user-bubble {{
+    background: linear-gradient(135deg, rgba(200,169,110,0.18) 0%, rgba(200,169,110,0.09) 100%);
+    border: 1px solid rgba(200,169,110,0.3);
+    border-radius: 14px 14px 2px 14px;
+    padding: 0.8rem 1.1rem;
+    max-width: 76%;
+    color: {text};
+    font-size: 0.9rem;
+    line-height: 1.65;
+}}
+.chat-asst-wrap {{ display: flex; justify-content: flex-start; margin: 0.8rem 0; }}
+.chat-asst-bubble {{
+    background: {card_bg};
+    border: 1px solid {border};
+    border-left: 2px solid rgba(200,169,110,0.45);
+    border-radius: 2px 14px 14px 14px;
+    padding: 1rem 1.25rem 0.9rem;
+    max-width: 90%;
+    color: {text};
+    font-size: 0.9rem;
+    line-height: 1.75;
+}}
+.chat-asst-label {{
+    display: block;
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.54rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: {gold};
+    margin-bottom: 0.6rem;
+    opacity: 0.7;
+}}
+.typing-cursor {{
+    display: inline-block;
+    color: {gold};
+    font-size: 0.85em;
+    vertical-align: middle;
+    margin-left: 2px;
+    animation: scholar-blink 0.9s step-end infinite;
+}}
+@keyframes scholar-blink {{
+    0%, 100% {{ opacity: 1; }}
+    50% {{ opacity: 0; }}
+}}
+.scholar-empty-hint {{
+    font-family: 'Inconsolata', monospace;
+    font-size: 0.62rem;
+    color: {dim};
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-align: center;
+    margin: 2.5rem 0 0.4rem;
+    opacity: 0.7;
+}}
+div:has(> .scholar-starters-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button {{
+    background: transparent !important;
+    border: 1px solid rgba(200,169,110,0.28) !important;
+    border-radius: 0 !important;
+    color: {gold} !important;
+    font-family: 'Inconsolata', monospace !important;
+    font-size: 0.58rem !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    padding: 0.55rem 0.6rem !important;
+    width: 100% !important;
+    min-height: 2.8rem !important;
+    line-height: 1.45 !important;
+    transition: all 0.25s ease !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    text-align: center !important;
+    opacity: 0.82;
+}}
+div:has(> .scholar-starters-marker) ~ [data-testid="stHorizontalBlock"] div.stButton > button:hover {{
+    background: rgba(200,169,110,0.08) !important;
+    border-color: {gold} !important;
+    opacity: 1 !important;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -311,6 +802,37 @@ def get_location_from_ip():
             continue
     return "New York", "US", 40.7128, -74.0060, "America/New_York"
 
+def get_hadith():
+    url = "https://random-hadith-generator.vercel.app/bukhari/"
+    r = requests.get(url, timeout=8)
+    r.raise_for_status()
+    data = r.json().get("data", {})
+    text = (data.get("hadith_english") or "").strip()
+    ref  = (data.get("refno") or "").strip()
+    if not text:
+        raise ValueError("empty hadith")
+    return text, ref
+
+@st.cache_data(ttl=300)
+def search_cities(query: str):
+    """Return up to 8 city matches from Open-Meteo geocoding (free, no key)."""
+    q = query.strip()
+    if len(q) < 2:
+        return []
+    url = (f"https://geocoding-api.open-meteo.com/v1/search"
+           f"?name={q}&count=8&language=en&format=json")
+    r = requests.get(url, timeout=5)
+    r.raise_for_status()
+    return r.json().get("results", [])
+
+def get_weather(lat, lon):
+    url = (f"https://api.open-meteo.com/v1/forecast"
+           f"?latitude={lat}&longitude={lon}&current_weather=true")
+    r = requests.get(url, timeout=6)
+    r.raise_for_status()
+    cw = r.json()["current_weather"]
+    return int(cw["weathercode"]), int(cw["is_day"])
+
 def get_data_by_city(city, country):
     url = f"https://api.aladhan.com/v1/timingsByCity?city={city}&country={country}&method=2"
     r = requests.get(url, timeout=10)
@@ -355,6 +877,126 @@ def find_next_prayer(timings, timezone_str):
             if (t.hour * 60 + t.minute) > current_minutes:
                 return name
     return "Fajr"
+
+def get_sun_arc_svg(timings, timezone_str, is_ramadan=False):
+    try:
+        tz = pytz.timezone(timezone_str)
+        now = datetime.now(tz)
+    except Exception:
+        now = datetime.now()
+
+    def to_min(t_str, default="00:00"):
+        t_str = (t_str or default).split()[0]
+        h, m = map(int, t_str.split(":"))
+        return h * 60 + m
+
+    fajr_min = to_min(timings.get("Fajr"), default="05:00")
+    maghrib_min = to_min(timings.get("Maghrib"), default="18:00")
+    now_min = now.hour * 60 + now.minute
+
+    denom = maghrib_min - fajr_min
+    if denom <= 0:
+        denom = 1
+
+    # Day progress (Fajr -> Maghrib)
+    progress = (now_min - fajr_min) / denom
+    progress = max(0.0, min(1.0, progress))
+
+    is_day = fajr_min <= now_min <= maghrib_min
+
+    # If after Maghrib, pin to Maghrib
+    if now_min > maghrib_min:
+        progress = 1.0
+
+    # Arc geometry
+    cx, cy, r = 160, 140, 130
+    angle = 180 - (progress * 180)
+    rad = math.radians(angle)
+    orb_x = cx + r * math.cos(rad)
+    orb_y = cy - r * math.sin(rad)
+
+    # If night, moon sits at Maghrib endpoint
+    if not is_day:
+        angle_n = 0  # right end
+        rad_n = math.radians(angle_n)
+        orb_x = cx + r * math.cos(rad_n)
+        orb_y = cy - r * math.sin(rad_n)
+
+    # Styling
+    track = "rgba(255, 200, 140, 0.20)"
+    label = "rgba(255, 255, 255, 0.55)"
+    glow = "rgba(255, 180, 90, 0.45)"
+
+    svg = f"""
+<div style="text-align:center; margin: 1.2rem 0 0.8rem 0; display:flex; justify-content:center;">
+<svg width="100%" height="180" viewBox="0 0 320 180" style="max-width:420px; overflow:visible;">
+  <defs>
+    <linearGradient id="arcGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d98a4f"/>
+      <stop offset="55%" stop-color="#ffb36b"/>
+      <stop offset="100%" stop-color="#d98a4f"/>
+    </linearGradient>
+
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="orbGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Track -->
+  <path d="M 30 140 A 130 130 0 0 1 290 140"
+        fill="none"
+        stroke="{track}"
+        stroke-width="2"
+        stroke-linecap="round"/>
+
+  <!-- Sexy arc -->
+  <path d="M 30 140 A 130 130 0 0 1 290 140"
+        fill="none"
+        stroke="url(#arcGradient)"
+        stroke-width="2.6"
+        stroke-linecap="round"
+        filter="url(#softGlow)"
+        opacity="0.55"/>
+
+  <!-- Orb -->
+  {""
+    if is_day else
+    f'''
+    <g filter="url(#orbGlow)">
+      <circle cx="{orb_x:.2f}" cy="{orb_y:.2f}" r="9" fill="rgba(255,255,255,0.90)"/>
+      <circle cx="{orb_x+3:.2f}" cy="{orb_y-1:.2f}" r="9" fill="rgba(0,0,0,0.55)"/>
+    </g>
+    '''
+  }
+
+  {""
+    if not is_day else
+    f'''
+    <g filter="url(#orbGlow)">
+      <circle cx="{orb_x:.2f}" cy="{orb_y:.2f}" r="10" fill="{glow}" opacity="0.35"/>
+      <circle cx="{orb_x:.2f}" cy="{orb_y:.2f}" r="5.2" fill="#ffb36b"/>
+    </g>
+    '''
+  }
+
+  <text x="30" y="166" fill="{label}" font-size="12" font-family="Inconsolata, monospace">Fajr</text>
+  <text x="290" y="166" fill="{label}" font-size="12" font-family="Inconsolata, monospace" text-anchor="end">Maghrib</text>
+</svg>
+</div>
+"""
+    return svg
 
 def compass_svg(degrees):
     rad = math.radians(degrees - 90)
@@ -461,12 +1103,31 @@ def render_calendar(log):
     )
 
 # ── Header ────────────────────────────────────────────────────────────────────
-now_utc = datetime.now()
-col_title, col_theme = st.columns([6, 1])
+# Inject weather particle overlay
+st.markdown(_overlay_html, unsafe_allow_html=True)
+
+try:
+    _tz_display = pytz.timezone(_cached_tz)
+    now_local = datetime.now(_tz_display)
+except Exception:
+    now_local = datetime.now()
+    
+col_title, col_clock, col_theme = st.columns([5, 3, 1])
 with col_title:
     st.markdown('<p class="main-title">Salah</p>', unsafe_allow_html=True)
     st.markdown('<p class="arabic-sub">\u0623\u0648\u0642\u0627\u062a \u0627\u0644\u0635\u0644\u0627\u0629</p>', unsafe_allow_html=True)
-    st.markdown(f'<p class="date-line">{now_utc.strftime("%A, %B %d, %Y")}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p class="date-line">{now_local.strftime("%A, %B %d, %Y")}</p>', unsafe_allow_html=True)
+with col_clock:
+    _clock_city = st.session_state.get("cached_city", "")
+    _tz_abbrev  = now_local.strftime("%Z")
+    _loc_label  = f"{_clock_city.upper()} · {_tz_abbrev}" if _clock_city else _tz_abbrev
+    st.markdown(
+        f'<div class="clock-wrap">'
+        f'<span class="clock-time">{now_local.strftime("%H:%M")}</span>'
+        f'<span class="clock-loc">{_loc_label}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 with col_theme:
     st.write("")
     st.write("")
@@ -476,8 +1137,52 @@ with col_theme:
 
 st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
+# ── Hadith of the Day ─────────────────────────────────────────────────────────
+if "hadith_text" not in st.session_state:
+    try:
+        _ht, _hr = get_hadith()
+        st.session_state["hadith_text"] = _ht
+        st.session_state["hadith_ref"]  = _hr
+    except Exception:
+        st.session_state["hadith_text"] = (
+            "The best of people are those who are most beneficial to people."
+        )
+        st.session_state["hadith_ref"] = "Sahih Bukhari"
+
+_hadith_text = st.session_state["hadith_text"]
+_hadith_ref  = st.session_state.get("hadith_ref", "Sahih Bukhari")
+
+# Card — label inside, quote mark, text, reference
+st.markdown(
+    f'<div class="hadith-card">'
+    f'<span class="hadith-label">Hadith of the Day</span>'
+    f'<span class="hadith-quote-mark">\u201c</span>'
+    f'<p class="hadith-text">{_hadith_text}</p>'
+    f'<span class="hadith-ref">Sahih Bukhari &middot; {_hadith_ref}</span>'
+    f'</div>',
+    unsafe_allow_html=True,
+)
+
+# Shuffle button — centered below the card.
+# The marker div is a CSS hook: div:has(> .hadith-shuffle-marker) ~ [stHorizontalBlock]
+# lets us scope the gold button style without any JavaScript.
+st.markdown('<div class="hadith-shuffle-marker"></div>', unsafe_allow_html=True)
+_sh_l, _sh_c, _sh_r = st.columns([3, 4, 3])
+with _sh_c:
+    if st.button("↻  another hadith", key="hadith_shuffle"):
+        with st.spinner(""):
+            try:
+                _ht, _hr = get_hadith()
+                st.session_state["hadith_text"] = _ht
+                st.session_state["hadith_ref"]  = _hr
+            except Exception:
+                pass
+        st.rerun()
+
+st.markdown('<hr class="divider">', unsafe_allow_html=True)
+
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs(["🕌 Prayer", "📿 Tracker", "🤲 Duas", "📖 Quran"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🕌 Prayer", "📿 Tracker", "🤲 Duas", "📖 Quran", "☪️ Scholar"])
 
 # ════════════════════════════════════════════════════════════
 # TAB 1 — PRAYER TIMES + QIBLA
@@ -492,32 +1197,144 @@ with tab1:
             with st.spinner("Detecting location..."):
                 city, country, lat, lon, timezone_str = get_location_from_ip()
             st.markdown(f'<p class="location-info">\u25cf  {city}, {country}</p>', unsafe_allow_html=True)
-        except:
+        except Exception:
             st.warning("Could not detect location. Please enter manually.")
             use_gps = False
 
     if not use_gps:
-        col1, col2 = st.columns([3, 2])
-        with col1:
-            city = st.text_input("City", value="New York", placeholder="e.g. London, Dubai, Karachi")
-        with col2:
-            country = st.selectbox("Country", COUNTRIES, index=COUNTRIES.index("US") if "US" in COUNTRIES else 0)
+        _city_query = st.text_input(
+            "Search city",
+            placeholder="Type a city name…",
+            label_visibility="collapsed",
+            key="city_search_input",
+        )
+        if _city_query and len(_city_query.strip()) >= 2:
+            try:
+                _geo_results = search_cities(_city_query.strip())
+            except Exception:
+                _geo_results = []
+            if _geo_results:
+                _geo_labels = []
+                for _gr in _geo_results:
+                    _lbl = _gr["name"]
+                    if _gr.get("admin1"):
+                        _lbl += f", {_gr['admin1']}"
+                    _lbl += f" — {_gr.get('country', '')}"
+                    _geo_labels.append(_lbl)
+                _geo_sel = st.selectbox(
+                    "",
+                    options=range(len(_geo_labels)),
+                    format_func=lambda i: _geo_labels[i],
+                    label_visibility="collapsed",
+                    key="city_select_box",
+                )
+                _chosen = _geo_results[_geo_sel]
+                lat          = float(_chosen["latitude"])
+                lon          = float(_chosen["longitude"])
+                timezone_str = _chosen.get("timezone") or "UTC"
+                city         = _chosen["name"]
+                country      = _chosen.get("country", "")
+                st.markdown(
+                    f'<p class="location-info">\u25cf  {city}, {country}</p>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.caption("No cities found — try a different spelling.")
+
+    # Cache city for the header clock location label
+    st.session_state["cached_city"] = city
 
     try:
         with st.spinner(""):
-            if use_gps:
-                data = get_data_by_coords(lat, lon)
-            else:
-                data = get_data_by_city(city, country)
+            data = get_data_by_coords(lat, lon)
+
             timings = data["data"]["timings"]
             hijri = data["data"]["date"]["hijri"]
             meta = data["data"]["meta"]
-            if not use_gps:
-                lat = meta["latitude"]
-                lon = meta["longitude"]
-            timezone_str = meta.get("timezone", timezone_str)
-            st.session_state["cached_timezone"] = timezone_str
-            qibla_deg = get_qibla(lat, lon)
+
+        # Timezone sync → triggers rerun so gradient updates immediately
+        new_tz = meta.get("timezone") or timezone_str or "UTC"
+        new_tz = str(new_tz).strip()
+
+        old_tz = st.session_state.get("cached_timezone")
+        if old_tz != new_tz:
+            st.session_state["cached_timezone"] = new_tz
+            st.rerun()
+
+        timezone_str = new_tz
+
+        # Weather refresh: re-fetch immediately on location change, else every 30 min
+        _new_lat = float(lat)
+        _new_lon = float(lon)
+        _old_lat = st.session_state.get("cached_lat")
+        _old_lon = st.session_state.get("cached_lon")
+        st.session_state["cached_lat"] = _new_lat
+        st.session_state["cached_lon"] = _new_lon
+
+        _loc_changed = (
+            _old_lat is None or _old_lon is None
+            or abs(_new_lat - _old_lat) > 0.5
+            or abs(_new_lon - _old_lon) > 0.5
+        )
+        _w_now = time.time()
+        _throttle_ok = _w_now - st.session_state.get("_weather_fetched_at", 0) > 1800
+
+        if _loc_changed or _throttle_ok:
+            try:
+                _wc_new, _wid_new = get_weather(_new_lat, _new_lon)
+                _old_w = st.session_state.get("cached_weather", {})
+                st.session_state["_weather_fetched_at"] = _w_now
+                if (_old_w.get("weathercode") != _wc_new
+                        or _old_w.get("is_day") != _wid_new):
+                    st.session_state["cached_weather"] = {
+                        "weathercode": _wc_new,
+                        "is_day": _wid_new,
+                    }
+                    st.rerun()
+            except Exception:
+                pass
+
+        from datetime import datetime
+        import pytz
+
+        def to_min(hhmm: str) -> int:
+            # handles "5:44 PM" or "17:44" depending on your timings format
+            hhmm = hhmm.strip()
+            try:
+                # 12-hr
+                dt = datetime.strptime(hhmm, "%I:%M %p")
+                return dt.hour * 60 + dt.minute
+            except:
+                # 24-hr
+                dt = datetime.strptime(hhmm, "%H:%M")
+                return dt.hour * 60 + dt.minute
+
+        tz = pytz.timezone(timezone_str)
+        now = datetime.now(tz)
+        now_min = now.hour * 60 + now.minute
+
+        fajr_min    = to_min(timings["Fajr"])
+        sunrise_min = to_min(timings.get("Sunrise", timings["Fajr"]))  # fallback
+        asr_min     = to_min(timings["Asr"])
+        maghrib_min = to_min(timings["Maghrib"])
+        isha_min    = to_min(timings["Isha"])   
+
+        # Night is "after Maghrib until Fajr" (crosses midnight)
+        after_maghrib = now_min >= maghrib_min
+        before_fajr   = now_min < fajr_min
+
+        if fajr_min <= now_min < sunrise_min:
+            phase = "dawn"
+        elif sunrise_min <= now_min < asr_min:
+            phase = "day"
+        elif asr_min <= now_min < maghrib_min:
+            phase = "sunset"
+        elif after_maghrib or before_fajr:
+            phase = "night"
+        else:
+            phase = "night"            
+
+        qibla_deg = get_qibla(lat, lon)
 
         hijri_str = f"{hijri['day']} {hijri['month']['en']} {hijri['year']} AH"
         st.markdown(f'<p class="hijri-date">{hijri_str}</p>', unsafe_allow_html=True)
@@ -550,52 +1367,105 @@ with tab1:
                 unsafe_allow_html=True
             )
 
+        # ── Sun Arc Visualization ─────────────────────────────────────
+        import streamlit.components.v1 as components
+
+        sun_arc = get_sun_arc_svg(timings, timezone_str, is_ramadan)
+        components.html(sun_arc, height=190)
+
         st.markdown('<p class="section-label">Prayer Times</p>', unsafe_allow_html=True)
         next_prayer = find_next_prayer(timings, timezone_str)
 
+        # ── Countdown timer ───────────────────────────────────────────
         # ── Countdown timer ───────────────────────────────────────────
         try:
             _ctz   = pytz.timezone(timezone_str)
             _now_c = datetime.now(_ctz)
         except Exception:
             _now_c = datetime.now()
-        _nts     = timings.get(next_prayer, "00:00")
+
+        _nts = timings.get(next_prayer, "00:00")
         _nh, _nm = int(_nts.split(":")[0]), int(_nts.split(":")[1])
-        _ntgt    = _now_c.replace(hour=_nh, minute=_nm, second=0, microsecond=0)
+
+        _ntgt = _now_c.replace(hour=_nh, minute=_nm, second=0, microsecond=0)
         if _ntgt <= _now_c:
             _ntgt += timedelta(days=1)
-        _tms     = int(_ntgt.timestamp() * 1000)
-        _sdiff   = int((_ntgt - _now_c).total_seconds())
+
+        _tms   = int(_ntgt.timestamp() * 1000)
+        _sdiff = int((_ntgt - _now_c).total_seconds())
         _sh, _sr = divmod(_sdiff, 3600)
         _sm, _ss = divmod(_sr, 60)
-        _static  = f"{_sh:02d}:{_sm:02d}:{_ss:02d}"
+        _static = f"{_sh:02d}:{_sm:02d}:{_ss:02d}"
+
         import streamlit.components.v1 as components
         _card_bg  = "#131210" if is_dark else "#fdf6ec"
         _border_c = "#1e1e1e" if is_dark else "#e0d8d0"
         _dim_c    = "#4a4540" if is_dark else "#aaa099"
-        components.html(f"""
-<!DOCTYPE html><html><head><style>
-*{{margin:0;padding:0;box-sizing:border-box;}}
-body{{background:{_card_bg};border:1px solid {_border_c};border-radius:8px;
-     display:flex;flex-direction:column;align-items:center;justify-content:center;
-     height:100px;font-family:'Inconsolata',monospace;}}
-.lbl{{font-size:0.62rem;color:{_dim_c};letter-spacing:0.2em;text-transform:uppercase;margin-bottom:2px;}}
-.name{{font-size:1rem;color:#c8b89a;font-weight:400;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;}}
-.cd{{font-size:2.4rem;color:#c8a96e;font-weight:300;line-height:1;letter-spacing:0.06em;}}
-</style></head><body>
-<div class="lbl">next prayer in</div>
-<div class="name">{next_prayer}</div>
-<div class="cd" id="cd">{_static}</div>
-<script>
-var t=new Date({_tms});
-function tick(){{var d=t-Date.now();if(d<0)d=0;
-  var h=Math.floor(d/3600000),m=Math.floor(d%3600000/60000),s=Math.floor(d%60000/1000);
-  document.getElementById('cd').textContent=
-    String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+
+        components.html(
+            f"""<!DOCTYPE html>
+<html>
+<head>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{
+  background:{_card_bg};
+  border:1px solid {_border_c};
+  border-radius:8px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  height:100px;
+  font-family:'Inconsolata', monospace;
 }}
-tick();setInterval(tick,1000);
-</script></body></html>
-""", height=108)
+.lbl {{
+  font-size:0.62rem;
+  color:{_dim_c};
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  margin-bottom:2px;
+}}
+.name {{
+  font-size:1rem;
+  color:#c8b89a;
+  font-weight:400;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  margin-bottom:4px;
+}}
+.cd {{
+  font-size:2.4rem;
+  color:#c8a96e;
+  font-weight:300;
+  line-height:1;
+  letter-spacing:0.06em;
+}}
+</style>
+</head>
+<body>
+  <div class="lbl">next prayer in</div>
+  <div class="name">{next_prayer}</div>
+  <div class="cd" id="cd">{_static}</div>
+
+<script>
+var t = new Date({_tms});
+function tick() {{
+  var d = t - Date.now();
+  if (d < 0) d = 0;
+  var h = Math.floor(d / 3600000);
+  var m = Math.floor((d % 3600000) / 60000);
+  var s = Math.floor((d % 60000) / 1000);
+  document.getElementById('cd').textContent =
+    String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}}
+tick();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>""",
+            height=108,
+        )
 
         for name in PRAYER_ORDER:
             if name not in timings:
@@ -745,9 +1615,10 @@ with tab4:
             unsafe_allow_html=True
         )
 
+        # Show standard Bismillah header for all surahs except At-Tawbah (9)
         if surah_number != 9:
             st.markdown(
-                '<div class="bismillah">\u0628\u0650\u0633\u0652\u0645\u0650 \u0627\u0644\u0644\u0651\u064e\u0647\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0652\u0645\u064e0670\u0646\u0650 \u0627\u0644\u0631\u0651\u064e\u062d\u0650\u064a\u0645\u0650</div>',
+                '<div class="bismillah">بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ</div>',
                 unsafe_allow_html=True
             )
 
@@ -757,12 +1628,15 @@ with tab4:
         root_id = f"surah-root-{surah_number}"
 
         html_blocks = f'<div id="{root_id}" class="surah-root" data-surah="{surah_number}">'
-        for ar, tr, en, au in zip(
+
+        ayahs = list(zip(
             arabic_edition["ayahs"],
             translit_edition["ayahs"],
             english_edition["ayahs"],
             audio_edition["ayahs"],
-        ):
+        ))
+
+        for ar, tr, en, au in ayahs:
             num = ar["numberInSurah"]
             audio_url = au["audio"]
             audio_attr = pyhtml.escape(audio_url, quote=True)
@@ -905,3 +1779,133 @@ with tab4:
 
     except Exception as e:
         st.error(f"Could not load surah: {e}")
+
+# ════════════════════════════════════════════════════════════
+# TAB 5 — ISLAMIC SCHOLAR AI
+# ════════════════════════════════════════════════════════════
+with tab5:
+    import html as _html_mod
+    import re as _re_mod
+
+    _SCHOLAR_SYSTEM = (
+        "You are a knowledgeable and compassionate Islamic scholar assistant. "
+        "You have deep knowledge of the Quran, Sahih Bukhari, Sahih Muslim, and other major "
+        "hadith collections, as well as Islamic jurisprudence and history. "
+        "When answering questions: always cite specific Quranic verses (Surah:Ayah) or hadith "
+        "references when relevant, be sensitive and compassionate when users share emotional "
+        "struggles and respond with relevant Islamic guidance and duas, provide deep tafsir-style "
+        "explanations when asked about specific verses, always clarify when something is a matter "
+        "of scholarly difference of opinion, and keep responses warm, accessible and grounded in "
+        "authentic sources. Never fabricate citations."
+    )
+
+    _SCHOLAR_STARTERS = [
+        "Explain Ayatul Kursi",
+        "I'm feeling anxious, what does Islam say?",
+        "What are the pillars of Islam?",
+    ]
+
+    def _scholar_html(role, content, streaming=False):
+        """Render a chat message as a styled HTML card."""
+        safe = _html_mod.escape(content)
+        # Basic markdown: **bold**, *italic*, `code`, newlines
+        safe = _re_mod.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', safe)
+        safe = _re_mod.sub(r'\*(.+?)\*', r'<em>\1</em>', safe)
+        safe = _re_mod.sub(
+            r'`(.+?)`',
+            r'<code style="font-family:Inconsolata,monospace;font-size:0.85em;'
+            r'background:rgba(200,169,110,0.12);padding:0.1em 0.35em;border-radius:3px;">\1</code>',
+            safe,
+        )
+        paras = safe.split('\n\n')
+        body = ''.join(
+            f'<p style="margin:0 0 0.55rem 0;">{p.replace(chr(10), "<br>")}</p>'
+            for p in paras if p.strip()
+        )
+        if not body:
+            body = '<p style="margin:0;"></p>'
+
+        if role == "user":
+            return (
+                f'<div class="chat-user-wrap">'
+                f'<div class="chat-user-bubble">{body}</div>'
+                f'</div>'
+            )
+        else:
+            cursor = '<span class="typing-cursor">▌</span>' if streaming else ''
+            return (
+                f'<div class="chat-asst-wrap">'
+                f'<div class="chat-asst-bubble">'
+                f'<span class="chat-asst-label">✦ Scholar</span>'
+                f'{body}{cursor}'
+                f'</div>'
+                f'</div>'
+            )
+
+    # Init conversation history
+    if "scholar_messages" not in st.session_state:
+        st.session_state["scholar_messages"] = []
+    _msgs = st.session_state["scholar_messages"]
+
+    # Render existing conversation
+    for _m in _msgs:
+        st.markdown(_scholar_html(_m["role"], _m["content"]), unsafe_allow_html=True)
+
+    # Empty state — intro hint + starter questions
+    if not _msgs:
+        st.markdown(
+            '<p class="scholar-empty-hint">Ask a question or choose one below</p>',
+            unsafe_allow_html=True,
+        )
+        st.markdown('<div class="scholar-starters-marker"></div>', unsafe_allow_html=True)
+        _sc1, _sc2, _sc3 = st.columns(3)
+        for _sci, (_sc_col, _s_text) in enumerate(zip([_sc1, _sc2, _sc3], _SCHOLAR_STARTERS)):
+            with _sc_col:
+                if st.button(_s_text, key=f"scholar_starter_{_sci}"):
+                    st.session_state["scholar_pending"] = _s_text
+                    st.rerun()
+
+    # Collect input — from chat box or a clicked starter
+    _pending = st.session_state.pop("scholar_pending", None)
+    _typed   = st.chat_input("Ask anything about Islam…", key="scholar_chat_input")
+    _prompt  = _typed or _pending
+
+    if _prompt:
+        _msgs.append({"role": "user", "content": _prompt})
+        st.markdown(_scholar_html("user", _prompt), unsafe_allow_html=True)
+
+        _api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not _api_key:
+            st.error("ANTHROPIC_API_KEY is not set. Add it to your .env file.")
+        else:
+            try:
+                import anthropic as _anthropic
+                _client = _anthropic.Anthropic(api_key=_api_key)
+
+                # Build messages list (exclude system from history — passed separately)
+                _api_msgs = [{"role": m["role"], "content": m["content"]} for m in _msgs]
+
+                _placeholder = st.empty()
+                _full = ""
+                with _client.messages.stream(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=1500,
+                    system=_SCHOLAR_SYSTEM,
+                    messages=_api_msgs,
+                ) as _stream:
+                    for _chunk in _stream.text_stream:
+                        _full += _chunk
+                        _placeholder.markdown(
+                            _scholar_html("assistant", _full, streaming=True),
+                            unsafe_allow_html=True,
+                        )
+
+                # Finalize — remove blinking cursor
+                _placeholder.markdown(
+                    _scholar_html("assistant", _full, streaming=False),
+                    unsafe_allow_html=True,
+                )
+                _msgs.append({"role": "assistant", "content": _full})
+
+            except Exception as _scholar_err:
+                st.error(f"Could not reach the Scholar: {_scholar_err}")

@@ -4,3 +4,4 @@ pytz
 streamlit-searchbox
 supabase
 python-dotenv
+anthropic
